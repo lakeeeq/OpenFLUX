@@ -1,0 +1,132 @@
+RxnID	rxnEq	rxnCTrans	rates	rxnType	basis	deviation
+R01	GLC_in = GLC	abcdef = abcdef		F		
+R02	GLC + NTP = G6P	abcdef + X = abcdef		F		
+R03	G6P = F6P	abcdef = abcdef		F		
+R04	F6P = G6P	abcdef = abcdef		F		
+R05	G6P = PG6 + NAD	abcdef = abcdef + X		F		
+R06	PG6 = RU5P + CO2 + NAD	abcdef = bcdef + a + X		F		
+R07	RU5P + RU5P = G3P + S7P 	abcde + fghij = hij + fgabcde		F		
+R08	G3P + S7P = RU5P + RU5P	hij + fgabcde = abcde + fghij		F		
+R09	G3P + S7P = E4P + F6P	hij + abcdefg = defg + abchij		F		
+R10	E4P + F6P = G3P + S7P	defg + abchij = hij + abcdefg		F		
+R11	E4P + RU5P = F6P + G3P	abcd + efghi = efabcd + ghi		F		
+R12	F6P + G3P = E4P + RU5P	efabcd + ghi = abcd + efghi		F		
+R13	RU5P_in = RU5P	abcde = abcde		F		
+R14	RU5P = PRPP	abcde = abcde		F		
+R15	PRPP = PRPP_out	abcde = abcde		F		
+R16	F6P + NTP = F16BP	abcdef + X = abcdef		F		
+R17	F16BP = F6P	abcdef = abcdef		F		
+R18	F16BP = DHAP + G3P	abcdef = abc + def		F		
+R19	DHAP + G3P = F16BP	abc + def = abcdef		F		
+R20	DHAP = G3P	abc = cba		F		
+R21	G3P = DHAP	abc = cba		F		
+R22	G3P = PG2O3 + NTP + NAD	abc = abc + X + X		F		
+R23	PG2O3 = PEP	abc = abc		F		
+R24	PEP = PYR + NTP	abc = abc + X		F		
+R25	PYR + NAD = LACC	abc + X = abc		F		
+R26	LACC = PYR + NAD	abc = abc + X		F		
+R27	LACC = LAC_ext	abc = abc		F		
+R28	PYR = ACCOA + CO2+ NAD	abc = bc + a + X		F		
+R29	ACCOA + OAA = CIT	ab + cdef = fedbac		F		
+R30	CIT + NTP + 2 NAD = ACCOA_out + OAA	fedbac + X + 2 X = ab + cdef		F		
+R31	CIT = AKG + CO2 + NAD	abcdef = abcde + f + X		F		
+R32	AKG = SUCCOA + CO2 + NAD	abcde = bcde + a + X		F		
+R33	SUCCOA = 0.5 SUCC + 0.5 SUCC + NTP	abcd = 0.5 abcd + 0.5 dcba + X		F		
+R34	SUCC = 0.5 FUM + 0.5 FUM + 1.5 NTP	abcd = 0.5 abcd + 0.5 dcba + 1.5 X		F		
+R35	FUM + 1.5 NTP = 0.5 SUCC + 0.5 SUCC	abcd + 1.5 X = 0.5 abcd + 0.5 dcba		F		
+R36	FUM = MAL	abcd = abcd		F		
+R37	MAL = 0.5 FUM + 0.5 FUM	abcd = 0.5 abcd + 0.5 dcba		F		
+R38	MAL = OAA + NAD	abcd = abcd + X		F		
+R39	OAA + NAD = MAL	abcd + X = abcd		F		
+R40	GLN_in = GLN	abcde = abcde		F		
+R41	GLN = GLU	abcde = abcde		F		
+R42	GLU = GLN	abcde = abcde		F		
+R43	GLU = AKG	abcde = abcde		F		
+R44	AKG = GLU	abcde = abcde		F		
+R45	MAL = PYR + CO2 + NAD	abcd = abc + d + X		F		
+R46	PYR + CO2 + NTP = OAA	abc + d + X = abcd		F		
+R47	ACCOA_in = ACCOA	ab = ab		F		
+R48	CO2 = CO2_out	a = a		F		
+R49	CO2_in = CO2	a = a		F		
+R50	G6P = G1P	abcdef = abcdef		F		
+R51	G1P = G6P	abcdef = abcdef		F		
+R52	G1P + NTP = UDPGLC	abcdef + X = abcdef		F		
+R53	UDPGLC = GLYCOGEN_out	abcdef = abcdef		F		
+R54	GLYCOGEN_in = G1P	abcdef = abcdef		F		
+R55	OAA = ASP	abcd = abcd		F		
+R56	ASP = ASP_out	abcd = abcd		F		
+R57	ASP + 2 NTP = ASN	abcd + 2 X = abcd		F		
+R58	ASN = ASN_out	abcd = abcd		F		
+R59	PYR = ALA	abc = abc		F		
+R60	ALA = ALA_out	abc = abc		F		
+R61	DHAP = GLYOL3P	abc = abc		F		
+R62	GLYOL3P = GLYOL3P_out	abc = abc		F		
+R63	OAA_in = OAA	abcd = abcd		F		
+R64	PYR_in = PYR	abc = abc		F		
+R65	SUCCOA_in = SUCCOA	abcd = abcd		F		
+R66	NAD = 2.5 NTP	X = X		F		
+						
+##	excludedMetabolites					
+#	GLC_in					
+#	CO2_out					
+#	RU5P_in					
+#	PRPP_out					
+#	GLN_in					
+#	ACCOA_in					
+#	CO2_in					
+#	GLYCOGEN_in					
+#	ASP_out					
+#	ALA_out					
+#	GLYOL3P_out					
+#	ASN_out					
+#	OAA_in					
+#	PYR_in					
+#	SUCCOA_in					
+						
+##	simulatedMDVs					
+#	GLC#111111					
+#	G6P#111111					
+#	F6P#111111					
+#	F16BP#111111					
+#	G1P#111111					
+#	PG6#111111					
+#	S7P#1111111					
+#	E4P#1111					
+#	RU5P#11111					
+#	PRPP#11111					
+#	UDPGLC#111111					
+#	DHAP#111					
+#	G3P#111					
+#	PG2O3#111					
+#	PEP#111					
+#	GLYOL3P#111					
+#	LACC#111					
+#	LAC_ext#111					
+#	PYR#111					
+#	CO2#1					
+#	ACCOA#11					
+#	OAA#1111					
+#	MAL#1111					
+#	CIT#111111					
+#	AKG#11111					
+#	SUCCOA#1111					
+#	SUCC#1111					
+#	FUM#1111					
+#	ASP#1111					
+#	ALA#111					
+#	GLN#11111					
+#	GLU#11111					
+#	ASN#1111					
+#	ACCOA_out#11					
+#	GLYCOGEN_out#111111					
+						
+##	inputSubstrates					
+#	GLC_in					
+#	RU5P_in					
+#	GLN_in					
+#	ACCOA_in					
+#	CO2_in					
+#	GLYCOGEN_in					
+#	OAA_in					
+#	PYR_in					
+#	SUCCOA_in					
