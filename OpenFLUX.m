@@ -14,7 +14,7 @@ classdef OpenFLUX < handle
         stepBTWsample %step size configuration
         noSteps
         isDynamic = true %set false to output steady-state model
-        isDEsolver = false %for ODE solver (not implemented)
+        isODEsolver = false %for ODE15s solver
         rxnEQfull %reactions in model file
         rxnEQ %reaction equation
         excludedMetabolites %list external species
@@ -35,8 +35,8 @@ classdef OpenFLUX < handle
         OPoptions %optimisation options
     end
     properties (Access = private)
-%         isUsingModelDynamic
-%         isUsingSolverDE
+        %         isUsingModelDynamic
+        %         isUsingSolverDE
         EMUmodelOutput
         EMUinputSubstrates
         EMUinsubMID
@@ -49,13 +49,13 @@ classdef OpenFLUX < handle
         knotSeqInt
         Nout
         Nout_int
-        tSampleIndex        
+        tSampleIndex
         simTime
         noIntMets
         noReactions %number of reactions in model
-        noParaPerFlux %how many CP per flux   
+        noParaPerFlux %how many CP per flux
         Sfull %stoic mat include external species
-        Sint %balanced stoic mat      
+        Sint %balanced stoic mat
     end
     events
     end
@@ -128,10 +128,29 @@ classdef OpenFLUX < handle
             [ofOBJ.bigEMUmodel, ofOBJ.cauchyTags, ofOBJ.EMUstateStoreIS_block, ofOBJ.EMUstate]...
                 = genEMUmodelStart(ofOBJ);
             ofOBJ.ionForm = readIonFormFile(ofOBJ.ionFormFileName);
+            [opCon,opInput] = genSimulationProblem(ofOBJ);
+        end
+        
+        function [simEMU,simConc,simFlux,simTime] = simSoln(ofOBJ,opInput,xFeas)
+            if ofOBJ.isODEsolver
+                [simEMU,simConc,simFlux,simTime] = simulateXfeasSoln_ODE(ofOBJ,opInput,xFeas);
+            else
+                [simEMU,simConc,simFlux,simTime] = simulateXfeasSoln_SBR(ofOBJ,opInput,xFeas);
+            end
+            
+        end
+        
+        function [opCon,opInput] = prepOptimisation(ofOBJ)
+            [ofOBJ.noSteps, ofOBJ.simTime, ofOBJ.tSampleIndex, ofOBJ.noParaPerFlux,...
+                ofOBJ.knotSeq, ofOBJ.knotSeqInt, ofOBJ.Nout, ofOBJ.Nout_int] = genBSplineMat(ofOBJ);
+            
+            [ofOBJ.bigEMUmodel, ofOBJ.cauchyTags, ofOBJ.EMUstateStoreIS_block, ofOBJ.EMUstate]...
+                = genEMUmodelStart(ofOBJ);
+            ofOBJ.ionForm = readIonFormFile(ofOBJ.ionFormFileName);
             ofOBJ.dataMet = expandDataMet(ofOBJ);
             [opCon,opInput] = genOptimisationProblem(ofOBJ);
         end
-                
+        
         function corruptData()
         end
         
@@ -1701,8 +1720,12 @@ rc = 1;
 startRC = rc;
 scanStop = true;
 while rc<=size(c,1)
-    if scanStop && isempty(c{rc})
-        contiBlock(end+1,:) = [startRC rc-1];
+    if scanStop && (isempty(c{rc}) || rc ==size(c,1))
+        if rc ==size(c,1)
+            contiBlock(end+1,:) = [startRC rc];
+        else
+            contiBlock(end+1,:) = [startRC rc-1];
+        end
         scanStop = false;
     elseif ~scanStop && ~isempty(c{rc})
         startRC = rc;
@@ -1723,7 +1746,7 @@ for i = 1:size(contiBlock,1)
             dataBlockVal(j,cc) = str2double(dataBlock{j}(tabPos(k)+1:tabPos(k+1)-1));
             cc = cc + 1;
         end
-        dataBlockVal(j,cc) = str2double(dataBlock{j}(tabPos(k)+1:end));
+        dataBlockVal(j,cc) = str2double(dataBlock{j}(tabPos(end)+1:end));
     end
     dataBlockVal(isnan(dataBlockVal)) = 0;
     dataOut{i,2} = dataBlockVal(:,1:2:size(dataBlockVal,2));
@@ -1802,6 +1825,9 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function dataMet = expandDataMet(ofOBJ)
 dataMet = ofOBJ.dataMet;
+if isempty(dataMet)
+    return
+end
 expMIDs = ofOBJ.ionForm;
 noSamples = numel(ofOBJ.sampleTime);
 cc = 0;
@@ -1949,6 +1975,82 @@ opInput.Vmap_cell = ofOBJ.bigEMUmodel(:,7);
 opInput.EMUsize = cell2mat(ofOBJ.bigEMUmodel(:,1))+1;
 end
 
+function [opCon, opInput] = genSimulationProblem(ofOBJ)
+opCon = []; opInput =[];
+
+f_base = ofOBJ.fluxScale(:,ones(ofOBJ.noParaPerFlux,1));
+f_diff = ofOBJ.fluxScale(:,2)-ofOBJ.fluxScale(:,1);
+f_diff = f_diff(:,ones(ofOBJ.noParaPerFlux,1));
+
+c_base = ofOBJ.concScale(:,1);%this is for the initial concentration
+c_diff = ofOBJ.concScale(:,2)-ofOBJ.concScale(:,1);
+
+noX = ofOBJ.noParaPerFlux*ofOBJ.noReactions+ofOBJ.noIntMets;
+lb = zeros(noX,1);%organized in rxn blocks, then met
+ub = ones(noX,1);
+
+%construct flux profile from bspline basis vector
+CPmap = zeros(ofOBJ.noParaPerFlux,ofOBJ.noReactions);
+CPmap(:) = 1:ofOBJ.noParaPerFlux*ofOBJ.noReactions;
+CPmap = CPmap';
+
+%construct initial metabolite
+concMap = [1:ofOBJ.noIntMets] + ofOBJ.noParaPerFlux*ofOBJ.noReactions;%met conc comes after fluxes
+
+f_diff_vect = f_diff';
+diff_vect = [f_diff_vect(:);c_diff];
+diff_vect(end+1:noX) = 0;%%%this extend stagnant pool
+f_base_vect = f_base';
+base_vect = [f_base_vect(:);c_base];
+base_vect(end+1:noX) = 0;%%%this extend stagnant pool
+
+%%%n mat incorporate stoichiometry%%
+bigNmat = zeros(ofOBJ.noIntMets*ofOBJ.noSteps,noX);
+tIndex = 1:ofOBJ.noIntMets;
+for tSlice = 1:ofOBJ.noSteps
+    bigN = zeros(ofOBJ.noIntMets,noX);
+    for i = 1:ofOBJ.noIntMets
+        NintSlice = ofOBJ.Nout_int(:,tSlice)';
+        for j = 1:ofOBJ.noReactions
+            Ncols = CPmap(j,:);
+            bigN(i,Ncols) = NintSlice*ofOBJ.Sint(i,j)+bigN(i,Ncols);
+        end
+        bigN(i,concMap(i)) = 1;
+    end
+    bigNmat((tSlice-1)*ofOBJ.noIntMets+tIndex,:) = bigN;
+end
+Acon = sparse(-bigNmat*diag(diff_vect));
+Bcon = bigNmat*base_vect-ofOBJ.concBound(1)*ones(ofOBJ.noSteps*ofOBJ.noIntMets,1);
+
+opCon.Acon = Acon;
+opCon.Bcon = Bcon;
+opCon.lb = lb;
+opCon.ub = ub;
+
+opInput.CPmap = CPmap;
+opInput.concMap = concMap;
+opInput.f_base = f_base;
+opInput.f_diff = f_diff;
+opInput.c_base = c_base;
+opInput.c_diff = c_diff;
+opInput.noT = ofOBJ.noSteps;
+opInput.Nout_int = ofOBJ.Nout_int;
+opInput.noEMUperm = size(ofOBJ.bigEMUmodel,1);
+opInput.cauchyTags = ofOBJ.cauchyTags;
+opInput.Sint = ofOBJ.Sint;
+opInput.deltaT = [0 diff(ofOBJ.simTime)];
+opInput.tSampleIndex = ofOBJ.tSampleIndex;
+opInput.noTsample = numel(ofOBJ.tSampleIndex);
+opInput.fluxStoicT = ofOBJ.EMUmodelOutput.fluxStoicT;
+opInput.Nout = ofOBJ.Nout;
+opInput.EMUstateStoreIS_block = ofOBJ.EMUstateStoreIS_block;
+opInput.EMUstateStore = cell(ofOBJ.noSteps,1);
+opInput.EMUstate = ofOBJ.EMUstate;
+opInput.A_cell = ofOBJ.bigEMUmodel(:,5);
+opInput.Cmap_cell = ofOBJ.bigEMUmodel(:,6);
+opInput.Vmap_cell = ofOBJ.bigEMUmodel(:,7);
+opInput.EMUsize = cell2mat(ofOBJ.bigEMUmodel(:,1))+1;
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function genConcScale(ofOBJ)
@@ -1964,3 +2066,78 @@ end
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [simEMU,simConc,simFlux,simTime]  = simulateXfeasSoln_SBR(ofOBJ,opInput,x)
+%%%unpack
+varName = fieldnames(opInput);
+for i = 1:numel(varName)
+    eval([varName{i} '=opInput.' varName{i} ';']);
+end
+%%Forward Euler %EMUstate_i+1 = A*EMUstate_i
+CP = f_base + x(CPmap).*f_diff;
+vProfile = CP*Nout;
+metConc = c_base + x(concMap).*c_diff;%this is the active pool
+vInt = CP*Nout_int;
+metConcIni = metConc(:,ones(noT,1));
+metConcProfile = Sint*vInt + metConcIni;
+
+EMUstateStore{1} = EMUstate(:,1);
+for i = 2:noT
+    flux = vProfile(:,i)*deltaT(i);
+    fluxCombine = fluxStoicT*flux;%convert individual fluxes to summary parameters
+    
+    %update EMU state
+    for j = noEMUperm:-1:1
+        A = A_cell{j};%empty A matrix
+        Cmap = Cmap_cell{j};
+        Vmap = Vmap_cell{j};
+        A(Cmap(:,1)) = metConc(Cmap(:,2));
+        A(Vmap(:,1)) = fluxCombine(Vmap(:,2));
+        EMUstateNext = A*[EMUstate{j,1};EMUstate{j,2}];%individual top, cauchy bottom
+        EMUstateNextRowSum = sum(EMUstateNext,2);
+        EMUstateNext = EMUstateNext./EMUstateNextRowSum(:,ones(1,EMUsize(j)));
+        EMUstate{j,1} = [EMUstateNext; EMUstateStoreIS_block{i,j}];%update individual only
+    end
+    
+    %update EMU cauchy state, for next round
+    for j = 1:noEMUperm
+        matNow = cauchyTags{j};
+        for k = 1:size(matNow,1)
+            state1 = EMUstate{matNow(k,1),1}(matNow(k,2),:);
+            state2 = EMUstate{matNow(k,3),1}(matNow(k,4),:);
+            cauchyProd = cauchy(state1,state2);
+            EMUstate{j,2}(k,:) = cauchyProd;
+        end
+    end
+    EMUstateStore{i} = EMUstate(:,1);
+    metConc = metConcProfile(:,i);
+end
+simTime = ofOBJ.simTime;
+simFlux = vProfile;
+simConc.metList = ofOBJ.metListInt;
+simConc.concentrations = metConcProfile;
+emuMapping = [];
+emuList = [];
+for i = 1:size(ofOBJ.EMUmodelOutput.bigEMUmodel,1)
+    for j = 1:size(ofOBJ.EMUmodelOutput.bigEMUmodel{i,2},1)
+        emuMapping(end+1,:) = [i j];
+    end
+    emuList = [emuList; ofOBJ.EMUmodelOutput.bigEMUmodel{i,2}];
+end
+emuFract = cell(size(emuList,1),1);
+for i = 1:size(emuList,1)
+    a1 = emuMapping(i,1); a2 = emuMapping(i,2);
+    emuVal = [];
+    for j = 1:noT
+        emuVal(end+1,:) = EMUstateStore{j}{a1}(a2,:);
+    end
+    emuFract{i} = emuVal;
+end
+simEMU.emuList = emuList;
+simEMU.emuFract = emuFract;
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function simEMU = simulateXfeasSoln_ODE(ofOBJ,opInput,xFeas)
+
+end
