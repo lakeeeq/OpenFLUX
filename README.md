@@ -1,14 +1,14 @@
 # 13C-DMFA
-A MATLAB-based workflow to perform dynamic flux analysis using time-course 13C stable isotope data
+A MATLAB-based workflow to perform dynamic flux analysis using time-course 13C stable isotope data.
 
 ## Getting Started
 ### Prerequisite
-MATLAB (2017 or later) with Optimisation Toolbox
+MATLAB (2017 or later) with Optimisation Toolbox.
 ### Installation
-Download all scripts/functions and add folder to MATLAB path
+Download all scripts/functions and add folder to MATLAB path.
 
 ## Running tests
-Adipocyte model and data provided in the tests
+Adipocyte model and data provided in the tests.
 ### Simulation by SBR
 ### Optimisation by SBR
 
