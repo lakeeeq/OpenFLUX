@@ -17,8 +17,8 @@ Adipocyte model and data provided in the tests.
 
 ### Visualising simulation or optimisation results
 
-##Contact
+## Contact
 Lake-Ee Quek, lake-ee.quek@sydney.edu.au
 
-##Reference
+## Reference
 Lake-Ee Quek, James R. Krycer, Satoshi Ohno, Katsuyuki  Yugi, Daniel J. Fazakerley, Richard Scalzo, Sarah D. Elkington, Ziwei Dai, Akiyoshi Hirayama, Satsuki Ikeda, Futaba Shoji, Kumi Suzuki, Jason W. Locasale, Tomoyoshi Soga, David E. James, Shinya Kuroda. *Dynamic 13C flux analysis of adipocyte glucose metabolism following insulin stimulation.* Submitted.
