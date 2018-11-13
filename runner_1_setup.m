@@ -4,7 +4,8 @@
 %%%specifcy ion formula file%%% 
 clearvars
 clc
-addpath ./OFfxns;
+addpath ./OFfunctions;
+addpath ./inputs
 OF = OpenFLUX;
 % return
 %%%%initial configuration%%%%

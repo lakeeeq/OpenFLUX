@@ -1,4 +1,4 @@
-function hitEMU = matchEMU(EMUname, EMUtag, EMUlist)
+function hitEMU = matchEMUx(EMUname, EMUtag, EMUlist)
 if isempty(EMUlist)
     hitEMU = [];
     return
