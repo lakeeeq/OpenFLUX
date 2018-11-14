@@ -5,8 +5,6 @@ clearvars
 clc
 rng('shuffle');
 %%%%load ins soln%%%%
-% aa = load('old/ins_HR_186.mat');
-
 
 load OFobj
 OF.isOptimisation = true;
@@ -14,13 +12,10 @@ OF.genLabelledSubstrate;
 OF.metDataFileName = 'metDataIns';%for insulin
 % OF.metDataFileName = 'metDataBas.txt';%for basal
 reLoadData = true;
-% reLoadData = false;
+reLoadData = false;
 %%%setup data input%%%
 %run this for the first time to import and estimate data error
 %reload same dataset to ensure optimisation is consistently parameterised  (initial conc)
-%%%%this is for insulin%%%%
-% %{
-% %{
 if reLoadData    
     OF.reEstimateError('load',[]);%%reload previous error estimates
 else
@@ -37,7 +32,6 @@ OF.concScale(hitMet,:) = 0.01;
 
 %%%%setup optimisation%%%%
 OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
-% OF.intKntPos = aa.xKnot;
 simParas = OF.prepSimulation;
 
 
@@ -67,7 +61,6 @@ radData{2,3} = OF.findEMUindex('GLYCOGEN_out',[1 1 1 1 1 1]);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 x0 = rand(size(simParas.lb));
-% x0 = aa.xfitSeries{end,3};
 opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',40000);
 xGuess = x0;
 while 1
@@ -78,11 +71,11 @@ while 1
         xGuess = xFeas;
     end
 end
-% return
 
 fitFxn = OF.generateFitFxn(radData);
-%%%%%%%%%%%%%%%%%%%%%
 disp(fitFxn(xFeas));
+%%%%%%%%%%%%%%%%%%%%%
+
 xStart = xFeas;
 tStart = tic;
 [xFinish,fval,exitflag]= fmincon(fitFxn,xStart,opCon.Acon,opCon.Bcon,[],[],opCon.lb,opCon.ub,[],opOptions);

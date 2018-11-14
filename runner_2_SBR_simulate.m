@@ -6,7 +6,7 @@
 clearvars
 clc
 reLoadData = true;
-% reLoadData = false;
+reLoadData = false;
 if reLoadData
     load OFobj_SBRsim
 else
@@ -18,8 +18,6 @@ else
 end
 
 x0 = rand(size(simParas.lb));
-load xFeasSBRsim
-x0 = xFeas;
 opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',40000);
 
 %%%find a feasible solution
