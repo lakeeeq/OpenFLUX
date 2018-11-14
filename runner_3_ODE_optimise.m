@@ -5,10 +5,11 @@ clearvars
 clc
 rng('shuffle');
 %%%%load ins soln%%%%
-% aa = load('old/ins_HR_186.mat');
+aa = load('old/ins_HR_186.mat');
 
 
 load OFobj
+OF.isODEsolver = true;
 OF.isOptimisation = true;
 OF.genLabelledSubstrate;
 OF.metDataFileName = 'metDataIns';%for insulin
@@ -37,7 +38,7 @@ OF.concScale(hitMet,:) = 0.01;
 
 %%%%setup optimisation%%%%
 OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
-% OF.intKntPos = aa.xKnot;
+OF.intKntPos = aa.xKnot;
 simParas = OF.prepSimulation;
 
 
@@ -64,30 +65,34 @@ else %for basal
 end
 radData{1,3} = OF.findEMUindex('ACCOA_out',[1 1]);
 radData{2,3} = OF.findEMUindex('GLYCOGEN_out',[1 1 1 1 1 1]);
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 x0 = rand(size(simParas.lb));
 % x0 = aa.xfitSeries{end,3};
-opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',40000);
-xGuess = x0;
-while 1
-    xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,simParas.Acon,simParas.Bcon,[],[],simParas.lb,simParas.ub,[],opOptions);
-    if all(simParas.Acon*xFeas<=simParas.Bcon)
-        break
-    else
-        xGuess = xFeas;
-    end
-end
+% opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',40000);
+% xGuess = x0;
+% while 1
+%     xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,[],[],[],[],simParas.lb,simParas.ub,simParas.conFxn,opOptions);
+%     if all(simParas.conFxn(xFeas)<=0)
+%         break
+%     else
+%         xGuess = xFeas;
+%     end
+% end
 % return
 
 fitFxn = OF.generateFitFxn(radData);
 %%%%%%%%%%%%%%%%%%%%%
+xFeas = aa.xfitSeries{end,3};
 disp(fitFxn(xFeas));
+
 xStart = xFeas;
 tStart = tic;
-[xFinish,fval,exitflag]= fmincon(fitFxn,xStart,opCon.Acon,opCon.Bcon,[],[],opCon.lb,opCon.ub,[],opOptions);
+[xFinish,fval,exitflag]= fmincon(fitFxn,xStart,[],[],[],[],simParas.lb,simParas.ub,simParas.conFxn,opOptions);
 tElapse = toc(tStart);
 
+return
 
 
 %%%other useful functions%%%%

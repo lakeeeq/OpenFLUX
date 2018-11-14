@@ -71,7 +71,7 @@ for i = 1:length(pos)
     end
 end
 if length(coeff) ~= length(atom)
-%     fprintf('error occured in %s\n',m);
+    %     fprintf('error occured in %s\n',m);
     fprintf('number of atom label (%1.0f labels) did not match coefficients (%1.0f coefficients)\n', length(atom), length(coeff));
     fprintf('press Ctrl C to terminate');
     pause(inf)
@@ -81,8 +81,29 @@ for i = 1:length(atom)
 end
 CM=1;
 for i = 1:length(atom)
-    CM = cauchy(CM,eval(['cVectGen2(' atom{i} ',output_size)'])'); 
+    CM = cauchy(CM,eval(['cVectGen2(' atom{i} ',output_size)'])');
 end
 CM = stepCV(CM,input_size);
 CM = CM(1:output_size,:);
 CM = CM(output_row,:);
+
+
+    function CM = stepCV(CV,columns)
+        %author Lake-Ee Quek, AIBN
+        %to construction correction matrix (CM) from correction vector (CV)
+        %function CM = stepCV(CV,columns)
+        %specify CV: correction vector
+        %specify columns: number of columns for correction matrix (CM)
+        
+        %convert CV to column vector if CV is a row vector
+        if size(CV,2) > size(CV,1)
+            CV = CV';
+        end
+        
+        CM=[];
+        for i = 1:columns
+            CM(i:i+length(CV)-1,i) = CV;
+        end
+        
+    end
+end

@@ -3,58 +3,67 @@ classdef OpenFLUX < handle
     %email: lake-ee.quek@sydney.edu.au
     %OpenFLUX for 13C-DMFA
     properties
-        modelFileName %model text file
-        ionFormFileName %met's name, size & ion formula
-        metDataFileName %metabolite data file
-        modelCondition %model comment
-        orderS = 3 %order of b-spline
-        noIntKnots = 1 %number of itnernal knots
-        intKntPos %knot position(s)
-        sampleTime %specify sampling time points
-        stepBTWsample %step size configuration
-        noSteps %total number of steps
-        isDynamic = true %set false to output steady-state model
-        isODEsolver = false %for ODE15s solver
-        rxnEQfull %reactions in model file
-        rxnEQ %reaction equation
-        excludedMetabolites %list external species
-        simulatedMDVs %list simulated EMUs
-        metList %full metaboltie list
-        metListInt %balanced metabolites
-        EMUrxnList %EMU reactions
-        natSub13Cenrich = 0.0107 %enrichment of other substrates
-        natEndo13Cenrich = 0.0107 %enrichment of endogenous met
-        labelledSub %specify input substrate name and positional enrichment
-        ionForm %ion formula from txt file
-        dataMet %metabolite tot abs and mass fract with estimated errors
-        fluxBound = [10 1e5] %global min and max bound of fluxes
-        fluxScale %flux min max for individual reactions
         concBound = [0.01 1e4] %global min and max bound of concentrations
         concScale %conc min max for individual balanced mets
-        midMinError = 0.01 %minimum error of mass fraction
+        dataMet %metabolite tot abs and mass fract with estimated errors
+        emuList %list of EMUs simulated
+        EMUrxnList %EMU reactions
+        excludedMetabolites %list external species
+        fluxBound = [10 1e5] %global min and max bound of fluxes
+        fluxScale %flux min max for individual reactions
+        intKntPos %knot position(s)
+        ionForm %ion formula from txt file
+        ionFormFileName %met's name, size & ion formula
+        isDynamic = true %set false to output steady-state model
+        isODEsolver = false %for ODE15s solver
+        isOptimisation = false %is OF object for optimisation
+        labelledSub %specify input substrate name and positional enrichment
+        metDataFileName %metabolite data file
+        metList %full metaboltie list
+        metListInt %balanced metabolites
+        midMinError = 0.01 %minimum exp error of mass fraction
+        modelCondition %model comment
+        modelFileName %model text file
+        natEndo13Cenrich = 0.0107 %enrichment of endogenous met, default 1.07%
+        natSub13Cenrich = 0.0107 %enrichment of other substrates, default 1.07%
+        noSteps %number of SBR steps
+        odeSimTime %simulation time steps for ODE
+        opInput %inputs to optimisation/simulation
+        opCon %constraints to optimisation/simulation
+        orderS = 3 %order of b-spline, default 3
+        rxnEQ %reaction equation
+        rxnEQfull %reactions in model file
+        sampleTime %specify sampling time points
+        simulatedMDVs %list simulated EMUs
+        stepBTWsample %step size configuration
+%         odeModel %ODE15s model
+%         bigEMUmodel %information of emu balances
     end
     properties (Access = private)
-        %         isUsingModelDynamic
-        %         isUsingSolverDE
-        EMUmodelOutput %store EMU model from txt
+        bigEMUmodel %information of emu balances
+        cauchyTags %EMUs that need cauchy productf
         EMUinputSubstrates %input substrates
         EMUinsubMID %enrichment of input substrates
-        EMUstateStoreIS_block %input sub state expanded over time
+        emuMapping %mapping of simulation vector to EMUs in emuList, sbr(emuSize-subindex), ode(Yvect index sum)
+        EMUmodelOutput %store EMU model from txt
         EMUstate %instantenous EMU
-        cauchyTags %EMUs that need cauchy productf
-        matchExt %external species in 'metList'
-        bigEMUmodel %information of emu balances
+        EMUstateStoreIS_block %input sub state expanded over time
+        isUsingModelDynamic
+        isUsingSolverDE
+        jacOut %jacobian for ODE15s
         knotSeq %knot sequence
         knotSeqInt %internal knot sequence
+        matchExt %external species in 'metList'
+        noIntMets %number of internal metabolites
+        noParaPerFlux %how many CP per flux
+        noReactions %number of reactions in model
         Nout %b spline matrix for fluxes
         Nout_int %b spline matrix for metabolites
-        tSampleIndex %index of samples
-        simTime %simulation time
-        noIntMets %number of internal metabolites
-        noReactions %number of reactions in model
-        noParaPerFlux %how many CP per flux
+        odeModel %ODE15s model
         Sfull %stoic mat include external species
+        simTime %simulation time
         Sint %balanced stoic mat
+        tSampleIndex %index of samples
     end
     events
     end
@@ -93,9 +102,8 @@ classdef OpenFLUX < handle
             end
         end
         
-        function genLabelledSubstrate(ofOBJ,substrateLabelled)
+        function genLabelledSubstrate(ofOBJ)
             %build input substrate MIDs
-            ofOBJ.labelledSub = substrateLabelled;
             ofOBJ.EMUinsubMID = inputSubBuilder(ofOBJ);
         end
         
@@ -104,15 +112,15 @@ classdef OpenFLUX < handle
             ofOBJ.dataMet = readMetDatFile(ofOBJ.metDataFileName);
         end
         
-        function reEstimateError(ofOBJ,actionToDo,noItt,matFileName)
+        function reEstimateError(ofOBJ,actionToDo,noItt)
             %actionToDo: 'load', 'save', 'generate'
             switch actionToDo
                 case 'load'
-                    load(matFileName,'-mat');
+                    load(ofOBJ.metDataFileName,'-mat');
                     ofOBJ.dataMet = dataMet;
                 case 'save'
                     dataMet = ofOBJ.dataMet;
-                    save(matFileName,'dataMet');
+                    save(ofOBJ.metDataFileName,'dataMet');
                 case 'generate'
                     ofOBJ.dataMet = calcErrorByMC(ofOBJ.dataMet,noItt);
             end
@@ -120,34 +128,160 @@ classdef OpenFLUX < handle
             
         end
         
-        function [opCon,opInput] = prepSimulation(ofOBJ)
+        function simParas = prepSimulation(ofOBJ)%[opCon,opInput,odeModel,jacOut]
             [ofOBJ.noSteps, ofOBJ.simTime, ofOBJ.tSampleIndex, ofOBJ.noParaPerFlux,...
                 ofOBJ.knotSeq, ofOBJ.knotSeqInt, ofOBJ.Nout, ofOBJ.Nout_int] = genBSplineMat(ofOBJ);
             
             [ofOBJ.bigEMUmodel, ofOBJ.cauchyTags, ofOBJ.EMUstateStoreIS_block, ofOBJ.EMUstate]...
                 = genEMUmodelStart(ofOBJ);
             ofOBJ.ionForm = readIonFormFile(ofOBJ.ionFormFileName);
-            [opCon,opInput] = genSimulationProblem(ofOBJ);
+            if ofOBJ.isOptimisation
+                ofOBJ.dataMet = expandDataMet(ofOBJ);
+                [opCon_out,opInput_out] = genOptimisationProblem(ofOBJ);
+            else
+                [opCon_out,opInput_out] = genSimulationProblem(ofOBJ);
+            end
+            
+            if ~ofOBJ.isODEsolver
+                simParas.isODE = false;
+                simParas.Acon = opCon_out.Acon;
+                simParas.Bcon = opCon_out.Bcon;
+                simParas.lb = opCon_out.lb;
+                simParas.ub = opCon_out.ub;
+                ofOBJ.opCon = opCon_out;
+                ofOBJ.opInput = opInput_out;
+                
+                emuMapping_out = [];
+                emuList_out = [];
+                for i = 1:size(ofOBJ.bigEMUmodel,1)
+                    for j = 1:size(ofOBJ.bigEMUmodel{i,2},1)
+                        emuMapping_out(end+1,:) = [i j];
+                    end
+                    emuList_out = [emuList_out; ofOBJ.bigEMUmodel{i,2}];
+                end
+                ofOBJ.emuMapping = emuMapping_out;
+                ofOBJ.emuList = emuList_out;
+                return
+            end
+            
+            [odeModel_out,fluxStoicTode,yLength,yLength_tag,Y2conc,Y0f,conc2X,EMUstate_struct,Y2concY] = genODEmodel(ofOBJ.EMUstate,...
+                ofOBJ.bigEMUmodel,ofOBJ.EMUmodelOutput.fluxStoicT,ofOBJ.Sint,opInput_out.noEMUperm,ofOBJ.EMUmodelOutput.metListData);
+            
+            emuMapping_out = {};
+            emuList_out = [];
+            yLength_tag_map = cell2mat(yLength_tag(:,[4 5]));
+            for i = 1:size(ofOBJ.bigEMUmodel,1)
+                for j = 1:size(ofOBJ.bigEMUmodel{i,2},1)
+                    hitRows = yLength_tag_map(:,1)==i & yLength_tag_map(:,2)==j;
+                    emuMapping_out{end+1,1} = find(hitRows)';
+                end
+                emuList_out = [emuList_out; ofOBJ.bigEMUmodel{i,2}];
+            end
+            ofOBJ.emuMapping = emuMapping_out;
+            ofOBJ.emuList = emuList_out;
+            
+            
+            if ofOBJ.isOptimisation
+                %%%%%remap Y to measurement vector
+                %%%2 steps, map to mid sim, then into index vector of dataMet col 9
+                %%%use col 10 to map back to bigEMUmodel
+                dataMet = ofOBJ.dataMet;
+                noExpData = size(ofOBJ.dataMet,1);
+                noSamples = numel(ofOBJ.sampleTime);
+                midTotLength = dataMet{end,9}(end,2);
+                YsimVect = zeros(midTotLength,1);
+                YstagVect = zeros(yLength,1);
+                yTag = cell2mat(yLength_tag(:,[4 5]));
+                Ymat = zeros(yLength,noSamples);%%%actual Y first row is always time=0
+                mFmap_concDenon = zeros(midTotLength,1);
+                mCmap = zeros(yLength,noExpData);
+                Ymat_Czeroed = false(noSamples,yLength);
+                Y_CM_stag = zeros(yLength,noSamples);
+                stag_2_Y_map = zeros(yLength,1);
+                for i = 1:size(dataMet,1)
+                    hitRows = yTag(:,1)==dataMet{i,10}(1) & yTag(:,2)==dataMet{i,10}(2);
+                    mCmap(hitRows,i) = 1;
+                    hitRowsIndex = find(hitRows);
+                    dataMet{i,16} = hitRowsIndex;
+                    Y_CM_stag(hitRowsIndex,:) = dataMet{i,13};
+                    stag_2_Y_map(hitRowsIndex) = i;
+                    mappedYcol = floor(dataMet{i,9}(:,1)/dataMet{i,12});
+                    mFmap_concDenon(dataMet{i,9}(:,2)) = mappedYcol*noExpData+i;
+                    for j = 1:size(dataMet{i,14},2)
+                        Ymat_Czeroed(j,hitRowsIndex(dataMet{i,14}(:,j))) = 1;
+                    end
+                    
+                    boxSize = zeros(size(dataMet{i,14}));
+                    boxSize(dataMet{i,9}(:,1)) = dataMet{i,9}(:,2);
+                    Ymat(hitRows,:) = boxSize;
+                end
+                % Ymat = Ymat';
+                mFmap = [find(Ymat) Ymat(find(Ymat))];
+                Ymat_Czeroed = Ymat_Czeroed';
+                mCmap = mCmap';
+                stag_2_Y_map = [find(stag_2_Y_map) stag_2_Y_map(find(stag_2_Y_map))];
+                
+                opInput_out.mFmap = mFmap;
+                opInput_out.Ymat_Czeroed = Ymat_Czeroed;
+                opInput_out.mCmap = mCmap;
+                opInput_out.stag_2_Y_map = stag_2_Y_map;
+                opInput_out.mFmap_concDenon = mFmap_concDenon;
+                opInput_out.YstagVect = YstagVect;
+                opInput_out.YsimVect = YsimVect;
+                opInput_out.Y_CM_stag = Y_CM_stag;
+                opInput_out.dataMet = dataMet;
+            end
+            opInput_out.fluxStoicTode = fluxStoicTode;
+            opInput_out.yLength = yLength;
+            opInput_out.yLength_tag = yLength_tag;
+            opInput_out.Y2conc = Y2conc;
+            opInput_out.Y0f = Y0f;
+            opInput_out.conc2X = conc2X;
+            opInput_out.EMUstate_struct = EMUstate_struct;
+            opInput_out.Y2concY = Y2concY;
+            
+            %%%generate jacobian
+            noCombineRxn = size(fluxStoicTode,1);
+            jacOut_out = genODEjac(yLength_tag,ofOBJ.bigEMUmodel,odeModel_out,noCombineRxn,ofOBJ.cauchyTags);
+            jacOut_out.Y2concY = Y2concY;
+            jacOut_out.fluxStoicTode = fluxStoicTode;
+            jacOut_out.orderS = ofOBJ.orderS;
+            
+            conFxn = @(x)odeCon(x,opInput_out.c_base,opInput_out.concMap,opInput_out.c_diff,opInput_out.f_base,...
+                opInput_out.CPmap,opInput_out.f_diff,opInput_out.Sint,opInput_out.knotSeq,opInput_out.orderS,...
+                ofOBJ.odeSimTime,max(ofOBJ.odeSimTime));
+            
+            simParas.conFxn = conFxn;
+            simParas.lb = opCon_out.lb;
+            simParas.ub = opCon_out.ub;
+            simParas.isODE = true;
+            
+            ofOBJ.opCon = opCon_out;
+            ofOBJ.opInput = opInput_out;
+            ofOBJ.odeModel = odeModel_out;
+            ofOBJ.jacOut = jacOut_out;
         end
         
-        function [simEMU,simConc,simFlux,simTime] = simSoln(ofOBJ,opInput,xFeas)
+        function [simEMU,simConc,simFlux,simTime] = simSoln(ofOBJ,xFeas)
             if ofOBJ.isODEsolver
-                [simEMU,simConc,simFlux,simTime] = simulateXfeasSoln_ODE(ofOBJ,opInput,xFeas);
+                [simEMU,simConc,simFlux,simTime] = simulateXfeasSoln_ODE(ofOBJ,xFeas);
             else
-                [simEMU,simConc,simFlux,simTime] = simulateXfeasSoln_SBR(ofOBJ,opInput,xFeas);
+                [simEMU,simConc,simFlux,simTime] = simulateXfeasSoln_SBR(ofOBJ,xFeas);
             end
             
         end
         
-        function [opCon,opInput] = prepOptimisation(ofOBJ)
-            [ofOBJ.noSteps, ofOBJ.simTime, ofOBJ.tSampleIndex, ofOBJ.noParaPerFlux,...
-                ofOBJ.knotSeq, ofOBJ.knotSeqInt, ofOBJ.Nout, ofOBJ.Nout_int] = genBSplineMat(ofOBJ);
+
+        function prepOptimisation_ODE(ofOBJ)
+            [odeModel,fluxStoicTode,yLength,yLength_tag,Y2conc,Y0f,conc2X,EMUstate_struct,Y2concY] = genODEmodel(ofOBJ.EMUstate,...
+                ofOBJ.bigEMUmodel,ofOBJ.fluxStoicT,ofOBJ.Sint,ofOBJ.noEMUperm,ofOBJ.metListData);
             
-            [ofOBJ.bigEMUmodel, ofOBJ.cauchyTags, ofOBJ.EMUstateStoreIS_block, ofOBJ.EMUstate]...
-                = genEMUmodelStart(ofOBJ);
-            ofOBJ.ionForm = readIonFormFile(ofOBJ.ionFormFileName);
-            ofOBJ.dataMet = expandDataMet(ofOBJ);
-            [opCon,opInput] = genOptimisationProblem(ofOBJ);
+            %%%generate jacobian
+            noCombineRxn = size(fluxStoicTode,1);
+            jacOut = genODEjac(yLength_tag,bigEMUmodel,odeModel,noCombineRxn,cauchyTags);
+            jacOut.Y2concY = Y2concY;
+            jacOut.fluxStoicTode = fluxStoicTode;
+            jacOut.orderS = orderS;
         end
         
         function corruptData()
@@ -159,25 +293,44 @@ classdef OpenFLUX < handle
         end
         
         function indexOut = findEMUindex(ofOBJ,EMUname,EMUtag)
-            hitRow = cell2mat(ofOBJ.bigEMUmodel(:,1))==sum(EMUtag);
-            hitEMU = matchEMU(EMUname,EMUtag,ofOBJ.bigEMUmodel{hitRow,2});
-            hitIntMet = strcmp(EMUname,ofOBJ.metListInt);
-            indexOut = [find(hitRow) find(hitEMU) find(hitIntMet)];
+            if ofOBJ.isODEsolver
+                indexOut = find(matchEMU(EMUname,EMUtag,ofOBJ.opInput.yLength_tag(:,[1 2])));
+            else            
+                hitRow = cell2mat(ofOBJ.bigEMUmodel(:,1))==sum(EMUtag);
+                hitEMU = matchEMU(EMUname,EMUtag,ofOBJ.bigEMUmodel{hitRow,2});
+                hitIntMet = strcmp(EMUname,ofOBJ.metListInt);
+                indexOut = [find(hitRow) find(hitEMU) find(hitIntMet)];
+            end
         end
         
-        function fitFxn = generateFitFxn(OF,opInput,radData)       
+        function fitFxn = generateFitFxn(ofOBJ,radData)
+            opInput = ofOBJ.opInput;
             %%%%unpack%%%%%
             varName = fieldnames(opInput);
             for i = 1:numel(varName)
                 eval([varName{i} '=opInput.' varName{i} ';']);
             end
-            fitFxn = @(x)leastSQ_SBR(x,CPmap,concMap,f_base,f_diff,c_base,c_diff,noT,Nout_int,...
+            
+            if ofOBJ.isODEsolver
+                fitFxn = @(x)leastSQ_ODE(x,c_base,concMap,c_diff,conc2X,Y0f,f_base,CPmap,...
+                    f_diff,yLength,knotSeq,orderS,noEMUperm,ofOBJ.odeModel,...
+                    EMUstate_struct,cauchyTags,fluxStoicTode,Y2concY,ofOBJ.jacOut,sampleTime,...
+                    mFmap,mCmap,Ymat_Czeroed,mFmap_concDenon,dataMetConc_EXPvect,dataMetMID_EXPvect,...
+                    dataMetSE_EXPvect,dataMetMID_SEvect,stagMap,cstag,stag_2_Y_map,Y_CM_stag,...
+                    YstagVect,YsimVect,dataMet,radData,noExpData,maxT);
+            else
+               fitFxn = @(x)leastSQ_SBR(x,CPmap,concMap,f_base,f_diff,c_base,c_diff,noT,Nout_int,...
                 noEMUperm,cauchyTags,Sint,deltaT,tSampleIndex,noTsample,dataMet,fluxStoicT,...
                 Nout,noExpData,dataMetConc_EXPvect,dataMetSE_EXPvect,dataMetMID_SIMvect,...
                 dataMetMID_EXPvect,dataMetMID_SEvect,EMUstateStoreIS_block,EMUstateStore,...
                 EMUstate,stagMap,cstag,metConcProfile_SIM,A_cell,Cmap_cell,Vmap_cell,EMUsize,...
-                radData);
+                radData); 
+            end
+            
+            
         end
+        
+        
     end
 end
 
@@ -478,7 +631,7 @@ end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function  [S, balRxn, metList, matchExt] = buildStoic(rxnEQ, excludedMetabolites)
+function [S, balRxn, metList, matchExt] = buildStoic(rxnEQ, excludedMetabolites)
 
 %pick out balanceable reactions
 balRxn = true(size(rxnEQ,1),1);
@@ -1231,7 +1384,6 @@ end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 function EMUout = removeEMUduplicate(EMUin)
 
 if size(EMUin,1)==1
@@ -1688,27 +1840,35 @@ function [noSteps, simTime, tSampleIndex, noParaPerFlux, knotSeq, knotSeqInt, No
 %generate BSpline basis matrix from knot and step
 tSimScale = [];
 tSampleIndex = [];
-stepBox = ofOBJ.stepBTWsample;
 tSample = ofOBJ.sampleTime;
-tScale = tSample/max(tSample);
-for i = 1:numel(tScale)
-    if i == 1
-        tStep = (tScale(i) - 0)/stepBox(i);
-        tSimScale = [tSimScale 0:tStep:tScale(i)];
+if ofOBJ.isODEsolver
+    tSimScale = ofOBJ.odeSimTime/max(ofOBJ.odeSimTime);
+    %%find closest%%
+    for i = 1:numel(tSample)
+        [~,tSampleIndex(i)] = min(abs(ofOBJ.odeSimTime-tSample(i)));
+    end    
+else
+    tScale = tSample/max(tSample);
+    stepBox = ofOBJ.stepBTWsample;
+    for i = 1:numel(tScale)
+        if i == 1
+            tStep = (tScale(i) - 0)/stepBox(i);
+            tSimScale = [tSimScale 0:tStep:tScale(i)];
+            tSampleIndex(i) = numel(tSimScale);
+            continue
+        end
+        tStep = (tScale(i) - tScale(i-1))/stepBox(i);
+        tSimScale = [tSimScale tScale(i-1)+tStep:tStep:tScale(i)];
         tSampleIndex(i) = numel(tSimScale);
-        continue
     end
-    tStep = (tScale(i) - tScale(i-1))/stepBox(i);
-    tSimScale = [tSimScale tScale(i-1)+tStep:tStep:tScale(i)];
-    tSampleIndex(i) = numel(tSimScale);
 end
 tSimNoScale = tSimScale*max(tSample);
-deltaT = [0 diff(tSimScale)]*max(tSample);
+% deltaT = [0 diff(tSimScale)]*max(tSample);
 noSteps = numel(tSimScale);
 simTime = tSimNoScale;
 
 orderS = ofOBJ.orderS;
-noKnots = ofOBJ.noIntKnots+2*orderS;
+noKnots = numel(ofOBJ.intKntPos)+2*orderS;
 noParaPerFlux = noKnots - orderS;
 xKnot = ofOBJ.intKntPos;
 knotSeq = [zeros(1,orderS) xKnot ones(1,orderS)];
@@ -1937,6 +2097,36 @@ f_base_vect = f_base';
 base_vect = [f_base_vect(:);c_base];
 base_vect(noX) = 0;
 
+
+opCon.lb = lb;
+opCon.ub = ub;
+opInput.CPmap = CPmap;
+opInput.concMap = concMap;
+opInput.f_base = f_base;
+opInput.f_diff = f_diff;
+opInput.c_base = c_base;
+opInput.c_diff = c_diff;
+opInput.Sint = ofOBJ.Sint;
+opInput.noEMUperm = size(ofOBJ.bigEMUmodel,1);
+opInput.cauchyTags = ofOBJ.cauchyTags;
+opInput.noExpData = noExpData;
+opInput.dataMetConc_EXPvect = dataMetConc_EXPvect;
+opInput.dataMetSE_EXPvect = dataMetSE_EXPvect;
+opInput.dataMetMID_SIMvect = dataMetMID_SIMvect;
+opInput.dataMetMID_EXPvect = dataMetMID_EXPvect;
+opInput.dataMetMID_SEvect = dataMetMID_SEvect;
+opInput.dataMet = ofOBJ.dataMet;
+opInput.stagMap = stagMap;
+opInput.cstag = cstag;
+
+if ofOBJ.isODEsolver
+    opInput.orderS = ofOBJ.orderS;
+    opInput.knotSeq = ofOBJ.knotSeq;
+    opInput.maxT = max(ofOBJ.odeSimTime);
+    opInput.sampleTime = ofOBJ.sampleTime;
+   return 
+end
+
 %%%n mat incorporate stoichiometry%%
 bigNmat = zeros(ofOBJ.noIntMets*ofOBJ.noSteps,noX);
 tIndex = 1:ofOBJ.noIntMets;
@@ -1957,37 +2147,17 @@ Bcon = bigNmat*base_vect-ofOBJ.concBound(1)*ones(ofOBJ.noSteps*ofOBJ.noIntMets,1
 
 opCon.Acon = Acon;
 opCon.Bcon = Bcon;
-opCon.lb = lb;
-opCon.ub = ub;
-
-opInput.CPmap = CPmap;
-opInput.concMap = concMap;
-opInput.f_base = f_base;
-opInput.f_diff = f_diff;
-opInput.c_base = c_base;
-opInput.c_diff = c_diff;
 opInput.noT = ofOBJ.noSteps;
 opInput.Nout_int = ofOBJ.Nout_int;
-opInput.noEMUperm = size(ofOBJ.bigEMUmodel,1);
-opInput.cauchyTags = ofOBJ.cauchyTags;
-opInput.Sint = ofOBJ.Sint;
 opInput.deltaT = [0 diff(ofOBJ.simTime)];
 opInput.tSampleIndex = ofOBJ.tSampleIndex;
 opInput.noTsample = numel(ofOBJ.tSampleIndex);
-opInput.dataMet = ofOBJ.dataMet;
+
 opInput.fluxStoicT = ofOBJ.EMUmodelOutput.fluxStoicT;
 opInput.Nout = ofOBJ.Nout;
-opInput.noExpData = noExpData;
-opInput.dataMetConc_EXPvect = dataMetConc_EXPvect;
-opInput.dataMetSE_EXPvect = dataMetSE_EXPvect;
-opInput.dataMetMID_SIMvect = dataMetMID_SIMvect;
-opInput.dataMetMID_EXPvect = dataMetMID_EXPvect;
-opInput.dataMetMID_SEvect = dataMetMID_SEvect;
 opInput.EMUstateStoreIS_block = ofOBJ.EMUstateStoreIS_block;
 opInput.EMUstateStore = cell(ofOBJ.noSteps,1);
 opInput.EMUstate = ofOBJ.EMUstate;
-opInput.stagMap = stagMap;
-opInput.cstag = cstag;
 opInput.metConcProfile_SIM = metConcProfile_SIM;
 opInput.A_cell = ofOBJ.bigEMUmodel(:,5);
 opInput.Cmap_cell = ofOBJ.bigEMUmodel(:,6);
@@ -1995,6 +2165,8 @@ opInput.Vmap_cell = ofOBJ.bigEMUmodel(:,7);
 opInput.EMUsize = cell2mat(ofOBJ.bigEMUmodel(:,1))+1;
 end
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [opCon, opInput] = genSimulationProblem(ofOBJ)
 opCon = []; opInput =[];
 
@@ -2024,6 +2196,23 @@ f_base_vect = f_base';
 base_vect = [f_base_vect(:);c_base];
 base_vect(end+1:noX) = 0;%%%this extend stagnant pool
 
+opCon.lb = lb;
+opCon.ub = ub;
+opInput.CPmap = CPmap;
+opInput.concMap = concMap;
+opInput.f_base = f_base;
+opInput.f_diff = f_diff;
+opInput.c_base = c_base;
+opInput.c_diff = c_diff;
+opInput.Sint = ofOBJ.Sint;
+opInput.noEMUperm = size(ofOBJ.bigEMUmodel,1);
+opInput.cauchyTags = ofOBJ.cauchyTags;
+
+if ofOBJ.isODEsolver
+    opInput.orderS = ofOBJ.orderS;
+    opInput.knotSeq = ofOBJ.knotSeq;
+   return 
+end
 %%%n mat incorporate stoichiometry%%
 bigNmat = zeros(ofOBJ.noIntMets*ofOBJ.noSteps,noX);
 tIndex = 1:ofOBJ.noIntMets;
@@ -2044,24 +2233,11 @@ Bcon = bigNmat*base_vect-ofOBJ.concBound(1)*ones(ofOBJ.noSteps*ofOBJ.noIntMets,1
 
 opCon.Acon = Acon;
 opCon.Bcon = Bcon;
-opCon.lb = lb;
-opCon.ub = ub;
-
-opInput.CPmap = CPmap;
-opInput.concMap = concMap;
-opInput.f_base = f_base;
-opInput.f_diff = f_diff;
-opInput.c_base = c_base;
-opInput.c_diff = c_diff;
 opInput.noT = ofOBJ.noSteps;
 opInput.Nout_int = ofOBJ.Nout_int;
-opInput.noEMUperm = size(ofOBJ.bigEMUmodel,1);
-opInput.cauchyTags = ofOBJ.cauchyTags;
-opInput.Sint = ofOBJ.Sint;
 opInput.deltaT = [0 diff(ofOBJ.simTime)];
 opInput.tSampleIndex = ofOBJ.tSampleIndex;
 opInput.noTsample = numel(ofOBJ.tSampleIndex);
-opInput.fluxStoicT = ofOBJ.EMUmodelOutput.fluxStoicT;
 opInput.Nout = ofOBJ.Nout;
 opInput.EMUstateStoreIS_block = ofOBJ.EMUstateStoreIS_block;
 opInput.EMUstateStore = cell(ofOBJ.noSteps,1);
@@ -2070,7 +2246,10 @@ opInput.A_cell = ofOBJ.bigEMUmodel(:,5);
 opInput.Cmap_cell = ofOBJ.bigEMUmodel(:,6);
 opInput.Vmap_cell = ofOBJ.bigEMUmodel(:,7);
 opInput.EMUsize = cell2mat(ofOBJ.bigEMUmodel(:,1))+1;
+opInput.fluxStoicT = ofOBJ.EMUmodelOutput.fluxStoicT;
+
 end
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function genConcScale(ofOBJ)
@@ -2085,8 +2264,10 @@ for i = 1:size(ofOBJ.dataMet)
 end
 end
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [simEMU,simConc,simFlux,simTime]  = simulateXfeasSoln_SBR(ofOBJ,opInput,x)
+function [simEMU,simConc,simFlux,simTime]  = simulateXfeasSoln_SBR(ofOBJ,x)
+opInput = ofOBJ.opInput;
 %%%unpack
 varName = fieldnames(opInput);
 for i = 1:numel(varName)
@@ -2135,16 +2316,9 @@ simTime = ofOBJ.simTime;
 simFlux = vProfile;
 simConc.metList = ofOBJ.metListInt;
 simConc.concentrations = metConcProfile;
-emuMapping = [];
-emuList = [];
-for i = 1:size(ofOBJ.EMUmodelOutput.bigEMUmodel,1)
-    for j = 1:size(ofOBJ.EMUmodelOutput.bigEMUmodel{i,2},1)
-        emuMapping(end+1,:) = [i j];
-    end
-    emuList = [emuList; ofOBJ.EMUmodelOutput.bigEMUmodel{i,2}];
-end
-emuFract = cell(size(emuList,1),1);
-for i = 1:size(emuList,1)
+emuMapping = ofOBJ.emuMapping;
+emuFract = cell(size(ofOBJ.emuList,1),1);
+for i = 1:size(ofOBJ.emuList,1)
     a1 = emuMapping(i,1); a2 = emuMapping(i,2);
     emuVal = [];
     for j = 1:noT
@@ -2152,12 +2326,387 @@ for i = 1:size(emuList,1)
     end
     emuFract{i} = emuVal;
 end
-simEMU.emuList = emuList;
+simEMU.emuList = ofOBJ.emuList;
 simEMU.emuFract = emuFract;
 end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function simEMU = simulateXfeasSoln_ODE(ofOBJ,opInput,xFeas)
-
+function [simEMU,simConc,simFlux,simTime] = simulateXfeasSoln_ODE(ofOBJ,x)
+opInput = ofOBJ.opInput;
+%%%unpack
+varName = fieldnames(opInput);
+for i = 1:numel(varName)
+    eval([varName{i} '=opInput.' varName{i} ';']);
 end
+metConcIni = c_base + x(concMap).*c_diff;
+Y0 = metConcIni(conc2X).*Y0f;
+CP = f_base + x(CPmap).*f_diff;
+maxT = max(ofOBJ.odeSimTime);
+y_empty = zeros(yLength,1);
+dynaFxn = @(t,y)dynaMet(t,y,y_empty,knotSeq,orderS,noEMUperm,...
+    ofOBJ.odeModel,EMUstate_struct,cauchyTags,fluxStoicTode,CP,Y2concY,maxT);
+
+dynaJacFxn = @(t,y)jacFxn(t,y,ofOBJ.jacOut,knotSeq,CP,maxT);
+odeOptionsJ = odeset('NonNegative',1,'Jacobian',dynaJacFxn,'RelTol',1e-3);
+while 1
+    [Tj, Yj] = ode15s(dynaFxn,ofOBJ.odeSimTime,Y0,odeOptionsJ);
+    if numel(Tj) < numel(ofOBJ.odeSimTime)
+        odeOptionsJ.RelTol =  odeOptionsJ.RelTol*10;
+        disp(['err, repeat with larger 10x reltol to ' num2str(odeOptionsJ.RelTol)]);
+    else
+        break
+    end
+end
+
+simTime = ofOBJ.simTime;
+simConc.metList = ofOBJ.metListInt;
+simConc.concentrations = Sint*CP*ofOBJ.Nout_int + metConcIni;
+simFlux = CP*ofOBJ.Nout;
+noEMUsim = size(ofOBJ.emuList,1);
+simEMU.emuList = ofOBJ.emuList;
+emuFract = cell(noEMUsim,1);
+
+for i = 1:noEMUsim
+    emuVals = Yj(:,ofOBJ.emuMapping{i});
+    emuVals_sum = sum(emuVals,2);
+    emuFract{i} = emuVals./emuVals_sum;
+end
+simEMU.emuFract = emuFract;
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [odeModel,fluxStoicT,yLength,yLength_tag,Y2conc,Y0f,conc2X,EMUstate_struct,Y2concY] = genODEmodel(EMUstate,...
+    bigEMUmodel,fluxStoicT,Sint,noEMUperm,metListData)
+EMUstate_struct = [];
+for i = 1:size(EMUstate,1)
+    calcSize = size(bigEMUmodel{i,2},1);
+    EMUstate_struct(i).calcEMU = EMUstate{i,1}(1:calcSize,:);
+    EMUstate_struct(i).isEMU = EMUstate{i,1}(calcSize+1:end,:);
+    EMUstate_struct(i).cauchyEMU = EMUstate{i,2};
+end
+
+%%%generate ODE for isotopologue balance in matrix form%%%
+%%% dX/dt = sum(vi * xi) - X*sum(vo)%%%%
+%%%%organize by size of EMU%%%%
+%%%bigEMUmodel has contributing sources, but need to sum up effluxes
+%%%sum of effluxes are placed along the diagonal%%%
+%%%metabolite efflux summed up into fluxStoicT, by metabolites
+
+noFluxIn = size(fluxStoicT,1);
+noIntMets = size(metListData,1);
+%append flux out to fluxStoicT (whch only has inputs)
+Sout = Sint;
+Sout(Sint>0) = 0;
+fluxStoicT = [fluxStoicT; Sout];
+%map new flux out in fluxStoicT to mapping matrix
+for i = 1:noEMUperm
+    calcEMU = bigEMUmodel{i,2};
+    mapMatrix = bigEMUmodel{i,7};
+    for j = 1:size(calcEMU,1)
+        metName = calcEMU{j,1};
+        dummyMat = bigEMUmodel{i,5};
+        hitIndex = find(strcmp(metName,metListData(:,1)));
+        %map the diagnoal for flux out
+        dummyMat(j,j) = 1;
+        mapMatrix(end+1,:) = [find(dummyMat) noFluxIn+hitIndex];
+    end
+    bigEMUmodel{i,10} = mapMatrix;
+end
+
+%%%make multiple columns of EMU vector into a single vector
+yLength = 0;
+yLength_tag = {};
+cc = 1;
+y2isoRows = cell(noEMUperm,2);
+
+for i = 1:noEMUperm
+    yLength = yLength + bigEMUmodel{i,9}*(bigEMUmodel{i,1}+1);
+    calcEMU = bigEMUmodel{i,2};
+    mapMat = zeros(bigEMUmodel{i,9},bigEMUmodel{i,1}+1);
+    concMapMat = zeros(bigEMUmodel{i,9},bigEMUmodel{i,1}+1);
+    for j = 1:size(calcEMU,1)
+        for k = 1:bigEMUmodel{i,1}+1
+            yLength_tag{cc,1} = calcEMU{j,1};
+            yLength_tag{cc,2} = calcEMU{j,2};
+            yLength_tag{cc,3} = k;
+            yLength_tag{cc,4} = i;
+            yLength_tag{cc,5} = j;
+            mapMat(j,k) = cc;
+            hitMetNameIndex = find(strcmp(calcEMU{j,1},metListData(:,1)));
+            concMapMat(j,k) = hitMetNameIndex;
+            cc = cc+1;
+        end
+    end
+    y2isoRows{i,1} = mapMat;%%%position in the single column y vector
+    y2isoRows{i,2} = concMapMat;%%%position of int met
+end
+
+%%%map y into concentrations, use full backbone (for Y2conc)
+%%%%%(need to change to longest)%%%%
+Y2conc = zeros(noIntMets,yLength);
+for i = 1:noIntMets
+    hitEMU = matchEMU(metListData{i,1}, ones(1,metListData{i,6}), yLength_tag(:,[1 2]));
+    Y2conc(i,hitEMU) = 1;
+end
+
+Y2concY = zeros(yLength);
+for i = 1:yLength
+    hitEMU = matchEMU(yLength_tag{i,1}, yLength_tag{i,2}, yLength_tag(:,[1 2]));
+    Y2concY(i,hitEMU) = 1;
+end
+
+odeModel = [];
+for i = 1:noEMUperm
+    odeModel(i).EMUsize = bigEMUmodel{i,1};
+    odeModel(i).A0 = bigEMUmodel{i,5};
+    odeModel(i).Amap = bigEMUmodel{i,10};
+    %     odeModel(i).x0 = zeros(size(odeModel(i).A0,2),odeModel(i).EMUsize+1);
+    %     odeModel(i).leadCalcEMU = 1:size(odeModel(i).A0,1);
+    odeModel(i).y2isoRows = y2isoRows{i,1}(:);
+    odeModel(i).y2isoRows_Shaped = y2isoRows{i,1};
+    odeModel(i).calcSize = size(odeModel(i).A0,1);
+end
+
+Y0f = zeros(yLength,1);
+conc2X = zeros(yLength,1);
+for i = 1:noEMUperm
+    emuIni = EMUstate{i,1}(1:bigEMUmodel{i,9},:);
+    hitMet = y2isoRows{i,2}(:);
+    Y0f(odeModel(i).y2isoRows) = emuIni(:);
+    conc2X(odeModel(i).y2isoRows) = hitMet;
+end
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function jacOut = genODEjac(yLength_tag,bigEMUmodel,odeModel,noCombineRxn,cauchyTags)
+noEMUperm = size(bigEMUmodel,1);
+yLength = size(yLength_tag,1);
+
+yTagBEM = cell2mat(yLength_tag(:,[4 5 3]));%%rows in y vector mapped to bigemumodel
+yTagBEM_denom = [];%%%col 2 basis of derv (to match dx), col3 numerator, for var present in denom, but not num
+cc = 1;
+for i = 1:noEMUperm
+    unknownSize = size(bigEMUmodel{i,2},1);
+    A0 = odeModel(i).A0;
+    A0(odeModel(i).Amap(:,1)) = odeModel(i).Amap(:,2);%%this shows rxn index
+    for j = 1:unknownSize %%go down row, df
+        for k =1:unknownSize %%go across col,dx
+            if A0(j,k) == 0
+                continue
+            end
+            yRow_df = find(yTagBEM(:,1)==i & yTagBEM(:,2)==j)';
+            yRow_dx = find(yTagBEM(:,1)==i & yTagBEM(:,2)==k)';
+            yRow_dVar = yRow_dx;
+            for m1 = yRow_df
+                for m2 = yRow_dx
+                    for m3 = yRow_dVar
+                        if m1 ~= m2 && m2~=m3 && yTagBEM(m1,3)==yTagBEM(m3,3)
+                            yTagBEM_denom(cc,:) = [m1 m2 m3];
+                            cc = cc + 1;
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+yTagBEM_denom = unique(yTagBEM_denom,'rows'); 
+
+
+%%%%vectorise jacobian matrix
+idxMat = [1:yLength]'*ones(1,yLength);
+JmatMap = idxMat(:);
+idxMat = idxMat';
+JmatMap(:,2) = idxMat(:);%col1 num df, col2 denom dx
+Jcoeff = zeros(yLength^2,noCombineRxn);
+
+for m1 = 1:noEMUperm
+    unknownSize = size(bigEMUmodel{m1,2},1);
+    ISsize =  size(bigEMUmodel{m1,3},1);
+    cauchySize = size(bigEMUmodel{m1,4},1);
+    A0 = odeModel(m1).A0;
+    A0(odeModel(m1).Amap(:,1)) = odeModel(m1).Amap(:,2);%%this shows rxn index
+    for m2 = 1:unknownSize %%search along EMU unknown vertically for df match
+        hitYrow_df = find(yTagBEM(:,1) == m1 & yTagBEM(:,2) == m2)';%%%this is df
+        for m3 = 1:unknownSize %search horizontally for dx
+            if A0(m2,m3) == 0
+                continue
+            end
+            hitYrow_dx = find(yTagBEM(:,1) == m1 & yTagBEM(:,2) == m3)';%%%this is dx
+            hitYrow_dVar = hitYrow_dx;
+            for m4 = hitYrow_df
+                for m5 = hitYrow_dx
+                    for m6 = hitYrow_dVar
+
+                        if m5 == m6 && yTagBEM(m4,3)==yTagBEM(m5,3) %%%need to be the same emu level%same num/denom
+                            if Jcoeff(JmatMap(:,1)==m4 & JmatMap(:,2)==m5,A0(m2,m3)) == 0
+                                Jcoeff(JmatMap(:,1)==m4 & JmatMap(:,2)==m5,A0(m2,m3)) = m5;
+                                %                         disp(['df '  yLength_tag{m4,1} ' ' num2str(yLength_tag{m4,2}) '; ' 'dx ' yLength_tag{m5,1} ' ' num2str(yLength_tag{m5,2})]);
+                            else
+                                disp('not zero');
+                                return
+                            end
+                        else
+                            hitRow_denom = yTagBEM_denom(:,1) == m4 & yTagBEM_denom(:,2) == m5 & yTagBEM_denom(:,3) == m6;
+                            if any(hitRow_denom)
+                                if Jcoeff(JmatMap(:,1)==m4 & JmatMap(:,2)==m5,A0(m2,m3)) == 0
+                                    Jcoeff(JmatMap(:,1)==m4 & JmatMap(:,2)==m5,A0(m2,m3)) = yLength + find(hitRow_denom);
+                                    %                         disp(['df '  yLength_tag{m4,1} ' ' num2str(yLength_tag{m4,2}) '; ' 'dx ' yLength_tag{m5,1} ' ' num2str(yLength_tag{m5,2})]);
+                                else
+                                    disp('not zero');
+                                    return
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+yLength2 = size(yTagBEM_denom,1);
+cauchyPairs = {};
+%col1 df; col2 dx; col3 sizeDF; col4 attached coeff; col5 cauchy pairs (numerator); col6 cauchy #
+cc = 1;
+for m1 = 1:noEMUperm
+    unknownSize = size(bigEMUmodel{m1,2},1);
+    isSize = size(bigEMUmodel{m1,3},1);
+    cauchySize = size(bigEMUmodel{m1,4},1);
+    A0 = odeModel(m1).A0;
+    A0(odeModel(m1).Amap(:,1)) = odeModel(m1).Amap(:,2);%%this shows rxn index
+ 
+    for m2 = 1:unknownSize %%search down rows of A0 to find nonzero entries
+        for m3 = 1:cauchySize %%search across cols of A0
+            if A0(m2,m3+unknownSize+isSize) == 0
+                continue
+            end
+            hitEMU1 = find(yTagBEM(:,1)==cauchyTags{m1}(m3,1) & yTagBEM(:,2)==cauchyTags{m1}(m3,2))';
+            hitEMU2 = find(yTagBEM(:,1)==cauchyTags{m1}(m3,3) & yTagBEM(:,2)==cauchyTags{m1}(m3,4))';
+            hitDF = find(yTagBEM(:,1)==m1 & yTagBEM(:,2)==m2)';
+            
+            for m4 = hitDF%%%take this as df
+                sizeDF = yTagBEM(m4,3);
+                cPairs = [];
+                for k1 = hitEMU1
+                    for k2 = hitEMU2
+                        if yTagBEM(k1,3)+yTagBEM(k2,3)-1 == sizeDF
+                            cPairs(end+1,:) = [k1 k2];
+                        end
+                    end
+                end
+                
+                for m5 = 1:yLength
+                    hithit = hitEMU1==m5;
+                    if any(hithit)
+                        matchHit = cPairs == hitEMU1(hithit);
+                        anyRows = any(matchHit,2);
+                        %%%%is it present in cPairs, numerator%%%%
+                        if any(anyRows)
+                            rowHit = find(anyRows);
+                            cauchyPairs{end+1,1} = m4;
+                            cauchyPairs{end,2} = m5;
+                            cauchyPairs{end,3} = sizeDF;
+                            cauchyPairs{end,4} = cPairs(rowHit,2);%%coeff in hitEMU2
+                            cauchyPairs{end,5} = cPairs;
+                            cauchyPairs{end,6} = cc;
+                            cauchyPairs{end,7} = A0(m2,m3+unknownSize+isSize);
+                        else
+                            cauchyPairs{end+1,1} = m4;
+                            cauchyPairs{end,2} = m5;
+                            cauchyPairs{end,3} = sizeDF;
+                            cauchyPairs{end,4} = [];
+                            cauchyPairs{end,5} = cPairs;
+                            cauchyPairs{end,6} = cc;
+                            cauchyPairs{end,7} = A0(m2,m3+unknownSize+isSize);
+                        end
+                    end
+                    
+                    hithit = hitEMU2==m5;
+                    if any(hithit)
+                        matchHit = cPairs == hitEMU2(hithit);
+                        anyRows = any(matchHit,2);
+                        %%%%is it present in cPairs, numerator%%%%
+                        if any(anyRows)
+                            rowHit = find(anyRows);
+                            colHit = find(~any(matchHit,1));
+                            cauchyPairs{end+1,1} = m4;
+                            cauchyPairs{end,2} = m5;
+                            cauchyPairs{end,3} = sizeDF;
+                            cauchyPairs{end,4} = cPairs(rowHit,1);%%coeff in hitEMU1
+                            cauchyPairs{end,5} = cPairs;
+                            cauchyPairs{end,6} = cc;
+                            cauchyPairs{end,7} = A0(m2,m3+unknownSize+isSize);
+                        else
+                            cauchyPairs{end+1,1} = m4;
+                            cauchyPairs{end,2} = m5;
+                            cauchyPairs{end,3} = sizeDF;
+                            cauchyPairs{end,4} = [];
+                            cauchyPairs{end,5} = cPairs;
+                            cauchyPairs{end,6} = cc;
+                            cauchyPairs{end,7} = A0(m2,m3+unknownSize+isSize);
+                        end
+                    end
+                end                
+            end
+            cc = cc + 1;
+        end        
+    end
+end
+noCauchyPairs = size(cauchyPairs,1);
+cauchyCoeff1 = cell2mat(cauchyPairs(:,2));%%%inverse of conc
+cauchyCoeff2 = zeros(noCauchyPairs,1);%%%%MID fractions of attached coeff
+% cauchyCoeff3 = zeros(noCauchyPairs,1);%%%sum cauchy mix
+cc3DP1 = [];
+cc3DP2 = [];
+cc3MM = zeros(noCauchyPairs,yLength);
+cauchyCoeffv = cell2mat(cauchyPairs(:,7));%%%associated flux
+cJpos = zeros(noCauchyPairs,1);
+for i = 1:noCauchyPairs
+    cJpos(i) = find(JmatMap(:,1)==cauchyPairs{i,1} & JmatMap(:,2)==cauchyPairs{i,2});
+    if ~isempty(cauchyPairs{i,4})
+        cauchyCoeff2(i) = cauchyPairs{i,4};
+    end
+    if ~isempty(cauchyPairs{i,5})
+        for j = 1:size(cauchyPairs{i,5},1)
+            cc3DP1(i,j) = cauchyPairs{i,5}(j,1);
+            cc3DP2(i,j) = cauchyPairs{i,5}(j,2);            
+            cc3MM(i,cauchyPairs{i,5}(j,2)) = cauchyPairs{i,5}(j,1);
+        end
+    end
+end
+
+for i = 1:noCauchyPairs
+    if Jcoeff(cJpos(i),cauchyCoeffv(i))==0
+        Jcoeff(cJpos(i),cauchyCoeffv(i)) = yLength + yLength2 + i;
+    else
+        disp('cauchy not zero');
+        return
+    end
+end
+
+nzRows = find(sum(Jcoeff~=0,2)>0);
+Jcoeff = Jcoeff(nzRows,:);
+% JmatMap = JmatMap(nzRows,:);
+
+
+jacOut.yTagBEM_denom = yTagBEM_denom(:,3);
+jacOut.nzEle_cc2 = cauchyCoeff2~=0;
+jacOut.nzEle_cc3 = cc3DP1~=0;
+jacOut.cauchyCoeff1 = cauchyCoeff1;
+jacOut.cauchyCoeff2 = cauchyCoeff2;
+jacOut.cc3DP1 = cc3DP1;
+jacOut.cc3DP2 = cc3DP2;
+jacOut.Jcoeff_map = [find(Jcoeff) Jcoeff(find(Jcoeff))];
+jacOut.Jcoeff_0 = zeros(numel(nzRows),noCombineRxn);
+jacOut.JnzRows = nzRows;
+jacOut.Jmat = zeros(yLength,yLength);
+jacOut.cc2 = zeros(noCauchyPairs,1);
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
