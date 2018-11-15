@@ -16,12 +16,30 @@ if ~opSave.isODE
     [Acon, Bcon] = OpenFLUX.buildSBRcon(opSave.AconParas);
 end
 
+runFeas = false;
 if isempty(opSave.xFeas)%get first feasible soln
-    disp('finding first feasible soln...')
-    xGuess = opSave.x0;
+    runFeas = true;
+    x0 = opSave.x0;
+    xGuess = x0;
+elseif opSave.solnIndex == 0%%there is a feasible soln, but not optimised
+    xStart = opSave.xFeas;
+elseif ~opSave.isODE && ~all(opSave.stepBTWsample==opSave.xFitSeries(opSave.solnIndex).stepBTWsample) %change in resolution
+    runFeas = true;
+    x0 = opSave.xFitSeries(opSave.solnIndex).xFinish;%not too far from last op soln
+    xGuess = x0;
+elseif opSave.isODE && ~isempty(opSave.xFitSeries(opSave.solnIndex).stepBTWsample) %change from SBR to ODE
+    runFeas = true;
+    x0 = opSave.xFitSeries(opSave.solnIndex).xFinish;%not too far from last op soln
+    xGuess = x0;
+else %%get latest feasible soln
+    xStart = opSave.xFitSeries(opSave.solnIndex).xFinish;
+end
+
+if runFeas
+    disp('finding/checking for feasible soln...')
     if opSave.isODE
         while 1
-            xFeas = fmincon(@(x)minDistX0(x,opSave.x0),xGuess,[],[],[],[],opSave.lb,opSave.ub,opSave.conFxn,opOptions);
+            xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,[],[],[],[],opSave.lb,opSave.ub,opSave.conFxn,opOptions);
             if all(opSave.conFxn(xFeas)<=0)
                 break
             else
@@ -30,7 +48,7 @@ if isempty(opSave.xFeas)%get first feasible soln
         end
     else
         while 1
-            xFeas = fmincon(@(x)minDistX0(x,opSave.x0),xGuess,Acon,Bcon,[],[],opSave.lb,opSave.ub,[],opOptions);
+            xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,Acon,Bcon,[],[],opSave.lb,opSave.ub,[],opOptions);
             if all(Acon*xFeas<=Bcon)
                 break
             else
@@ -38,14 +56,11 @@ if isempty(opSave.xFeas)%get first feasible soln
             end
         end
     end
-    opSave.xFeas = xFeas;
-    save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
-end
-
-if opSave.solnIndex == 0%%get latest feasible soln
-    xStart = opSave.xFeas;
-else
-    xStart = opSave.xFitSeries(end).xFinish;
+    xStart = xFeas;
+    if isempty(opSave.xFeas)
+        opSave.xFeas = xFeas;
+        save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
+    end
 end
 
 tStart = tic;
@@ -66,5 +81,8 @@ opSave.xFitSeries(opSave.solnIndex).xFinish = xFinish;
 opSave.xFitSeries(opSave.solnIndex).tElapse = tElapse;
 opSave.xFitSeries(opSave.solnIndex).fval = fval;
 opSave.xFitSeries(opSave.solnIndex).exitflag = exitflag;
+if ~opSave.isODE
+    opSave.xFitSeries(opSave.solnIndex).stepBTWsample = opSave.stepBTWsample;
+end
 save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
 disp('optimisation saved...')
