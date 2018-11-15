@@ -1,9 +1,9 @@
-function f = leastSQ_ODE(x,c_base,concMap,c_diff,conc2X,Y0f,f_base,CPmap,...
+function [f, Yj,fConc_diff,fMID_diff,rad_diff] = leastSQ_ODE(x,c_base,concMap,c_diff,conc2X,Y0f,f_base,CPmap,...
     f_diff,yLength,knotSeq,orderS,noEMUperm,odeModel,...
     EMUstate_struct,cauchyTags,fluxStoicTode,Y2concY,jacOut,tSample,...
     mFmap,mCmap,Ymat_Czeroed,mFmap_concDenon,dataMetConc_EXPvect,dataMetMID_EXPvect,...
     dataMetSE_EXPvect,dataMetMID_SEvect,stagMap,cstag,stag_2_Y_map,Y_CM_stag,...
-    YstagVect,YsimVect,dataMet,radData,noExpData,maxT)
+    YstagVect,YsimVect,dataMet,additionalData,noExpData,maxT)
 
 metConcIni = c_base + x(concMap).*c_diff;
 Y0 = metConcIni(conc2X).*Y0f;
@@ -47,14 +47,14 @@ YsimVect_15sJ = YsimVect./CsimVect(mFmap_concDenon);
 rad_diff = zeros(2,1);
 
 %do ff accumulation
-radSources = radData{1,1}*Yj(end,radData{1,3})';%correction for glucose fraction
+radSources = additionalData{1,1}*Yj(end,additionalData{1,3})';%correction for glucose fraction
 radCarbonAmount = radSources(1)*2+radSources(2);
-rad_diff(1) = (radCarbonAmount - radData{1,2}(1))/radData{1,2}(2);
+rad_diff(1) = (radCarbonAmount - additionalData{1,2}(1))/additionalData{1,2}(2);
 % radSim = radCarbonAmount;
 %do glycogen accumulation
-radSources = radData{2,1}*Yj(end,radData{2,3})';%correction for glucose fraction
+radSources = additionalData{2,1}*Yj(end,additionalData{2,3})';%correction for glucose fraction
 radCarbonAmount = radSources(1)*6;
-rad_diff(2) = (radCarbonAmount - radData{2,2}(1))/radData{2,2}(2);
+rad_diff(2) = (radCarbonAmount - additionalData{2,2}(1))/additionalData{2,2}(2);
 % radSim(2) = radCarbonAmount;
 
 fConc_diff = (dataMetConc_EXPvect-CsimVect_15sJ)./dataMetSE_EXPvect;

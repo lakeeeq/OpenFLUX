@@ -1,10 +1,10 @@
 function [f, metConcProfile,EMUstateStore,vProfile,fConc_diff,fMID_diff,rad_diff,vInt] =...
-    leastSQ(x,CPmap,concMap,f_base,f_diff,c_base,c_diff,noT,Nout_int,...
+    leastSQ_SBR(x,CPmap,concMap,f_base,f_diff,c_base,c_diff,noT,Nout_int,...
     noEMUperm,cauchyTags,Sint,deltaT,tSampleIndex,noTsample,dataMet,fluxStoicT,...
     Nout,noExpData,dataMetConc_EXPvect,dataMetSE_EXPvect,dataMetMID_SIMvect,...
     dataMetMID_EXPvect,dataMetMID_SEvect,EMUstateStoreIS_block,EMUstateStore,...
     EMUstate,stagMap,cstag,metConcProfile_SIM,A_cell,Cmap_cell,Vmap_cell,EMUsize,...
-    radData)
+    additionalData)
 
 %%Forward Euler %EMUstate_i+1 = A*EMUstate_i
 CP = f_base + x(CPmap).*f_diff;
@@ -72,20 +72,21 @@ metConcProfile_SIMvect = metConcProfile_SIM(:);
 %%%do radiolabel accumulation
 rad_diff = zeros(2,1);
 %do ff accumulation
-hitX = radData{1,3};
+hitX = additionalData{1,3};
 mid_SIM = EMUstateStore{noT}{hitX(1)}(hitX(2),:)*metConcProfile(hitX(3),noT);
-radSources = radData{1,1}*mid_SIM';%correction for glucose fraction
+radSources = additionalData{1,1}*mid_SIM';%correction for glucose fraction
 radCarbonAmount = radSources(1)*2+radSources(2);
-rad_diff(1) = (radCarbonAmount - radData{1,2}(1))/radData{1,2}(2);
+rad_diff(1) = (radCarbonAmount - additionalData{1,2}(1))/additionalData{1,2}(2);
 % radSim = radCarbonAmount;
 %do glycogen accumulation
-hitX = radData{2,3};
+hitX = additionalData{2,3};
 mid_SIM = EMUstateStore{noT}{hitX(1)}(hitX(2),:)*metConcProfile(hitX(3),noT);
-radSources = radData{2,1}*mid_SIM';%correction for glucose fraction
+radSources = additionalData{2,1}*mid_SIM';%correction for glucose fraction
 radCarbonAmount = radSources(1)*6;
-rad_diff(2) = (radData{2,2}(1) - radCarbonAmount)/radData{2,2}(2);
+rad_diff(2) = (additionalData{2,2}(1) - radCarbonAmount)/additionalData{2,2}(2);
 % radSim(2) = radCarbonAmount;
 
 fConc_diff = (dataMetConc_EXPvect-metConcProfile_SIMvect)./dataMetSE_EXPvect;
 fMID_diff = (dataMetMID_EXPvect-dataMetMID_SIMvect)./dataMetMID_SEvect;
 f = fConc_diff'*fConc_diff + fMID_diff'*fMID_diff + rad_diff'*rad_diff;
+% save allVar

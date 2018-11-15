@@ -4,8 +4,8 @@
 %%%specifcy ion formula file%%% 
 clearvars
 clc
-addpath ./OFfunctions;
-addpath ./inputs
+addpath OFfunctions
+addpath inputs
 OF = OpenFLUX;
 % return
 %%%%initial configuration%%%%
@@ -25,3 +25,16 @@ OF.stepBTWsample = [500	400	200	75	75	50];%required for SBR
 OF.odeSimTime = [0:1:60];%required for ODE15s, sampleTime must be within this range
 
 save OFobj OF
+
+
+%%%%%other useful functions%%%%%
+%%%unpack%%%
+%{
+varName = fieldnames(opInput);
+for i = 1:numel(varName)
+    eval([varName{i} '=opInput.' varName{i} ';']);
+end
+
+%%%get values of private properties%%%
+OF.getPrivProp(*property name*);
+%}

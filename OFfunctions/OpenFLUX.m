@@ -3,10 +3,11 @@ classdef OpenFLUX < handle
     %email: lake-ee.quek@sydney.edu.au
     %OpenFLUX for 13C-DMFA
     properties
-        concBound = [0.01 1e4] %global min and max bound of concentrations
+        concBound = [0.01 1e4] %global min and max bound of concentrations, max only apply to initial
         concScale %conc min max for individual balanced mets
         dataMet %metabolite tot abs and mass fract with estimated errors
         emuList %list of EMUs simulated
+        emuListODE %list of EMUs in ODE output matrix
         EMUrxnList %EMU reactions
         excludedMetabolites %list external species
         fluxBound = [10 1e5] %global min and max bound of fluxes
@@ -116,11 +117,17 @@ classdef OpenFLUX < handle
             %actionToDo: 'load', 'save', 'generate'
             switch actionToDo
                 case 'load'
-                    load(ofOBJ.metDataFileName,'-mat');
+                    try
+                        load(strcat([ofOBJ.metDataFileName,'_keep']),'-mat');
+                    catch
+                        disp(['error loading data: file '  ofOBJ.metDataFileName '_keep.mat not found']);
+                        return
+                    end
                     ofOBJ.dataMet = dataMet;
                 case 'save'
                     dataMet = ofOBJ.dataMet;
                     save(ofOBJ.metDataFileName,'dataMet');
+                    disp(['to reload the same data file, rename saved MAT file to '  ofOBJ.metDataFileName '_keep.mat'])
                 case 'generate'
                     ofOBJ.dataMet = calcErrorByMC(ofOBJ.dataMet,noItt);
             end
@@ -129,11 +136,13 @@ classdef OpenFLUX < handle
         end
         
         function simParas = prepSimulation(ofOBJ)%[opCon,opInput,odeModel,jacOut]
+
             [ofOBJ.noSteps, ofOBJ.simTime, ofOBJ.tSampleIndex, ofOBJ.noParaPerFlux,...
                 ofOBJ.knotSeq, ofOBJ.knotSeqInt, ofOBJ.Nout, ofOBJ.Nout_int] = genBSplineMat(ofOBJ);
-            
+
             [ofOBJ.bigEMUmodel, ofOBJ.cauchyTags, ofOBJ.EMUstateStoreIS_block, ofOBJ.EMUstate]...
                 = genEMUmodelStart(ofOBJ);
+
             ofOBJ.ionForm = readIonFormFile(ofOBJ.ionFormFileName);
             if ofOBJ.isOptimisation
                 ofOBJ.dataMet = expandDataMet(ofOBJ);
@@ -144,10 +153,14 @@ classdef OpenFLUX < handle
             
             if ~ofOBJ.isODEsolver
                 simParas.isODE = false;
-                simParas.Acon = opCon_out.Acon;
-                simParas.Bcon = opCon_out.Bcon;
+                if ofOBJ.isOptimisation
+                    simParas.AconParas = opCon_out.AconParas;
+                else
+                    [simParas.Acon, simParas.Bcon] = OpenFLUX.buildSBRcon(opCon_out.AconParas);
+                end
                 simParas.lb = opCon_out.lb;
                 simParas.ub = opCon_out.ub;
+                
                 ofOBJ.opCon = opCon_out;
                 ofOBJ.opInput = opInput_out;
                 
@@ -179,6 +192,7 @@ classdef OpenFLUX < handle
             end
             ofOBJ.emuMapping = emuMapping_out;
             ofOBJ.emuList = emuList_out;
+            ofOBJ.emuListODE = yLength_tag(:,[1 2 3]);
             
             
             if ofOBJ.isOptimisation
@@ -241,15 +255,18 @@ classdef OpenFLUX < handle
             opInput_out.Y2concY = Y2concY;
             
             %%%generate jacobian
-            noCombineRxn = size(fluxStoicTode,1);
-            jacOut_out = genODEjac(yLength_tag,ofOBJ.bigEMUmodel,odeModel_out,noCombineRxn,ofOBJ.cauchyTags);
-            jacOut_out.Y2concY = Y2concY;
-            jacOut_out.fluxStoicTode = fluxStoicTode;
-            jacOut_out.orderS = ofOBJ.orderS;
+            if isempty(ofOBJ.jacOut)
+                noCombineRxn = size(fluxStoicTode,1);
+                jacOut_out = genODEjac(yLength_tag,ofOBJ.bigEMUmodel,odeModel_out,noCombineRxn,ofOBJ.cauchyTags);
+                jacOut_out.Y2concY = Y2concY;
+                jacOut_out.fluxStoicTode = fluxStoicTode;
+                jacOut_out.orderS = ofOBJ.orderS;
+                ofOBJ.jacOut = jacOut_out;
+            end
             
             conFxn = @(x)odeCon(x,opInput_out.c_base,opInput_out.concMap,opInput_out.c_diff,opInput_out.f_base,...
                 opInput_out.CPmap,opInput_out.f_diff,opInput_out.Sint,opInput_out.knotSeq,opInput_out.orderS,...
-                ofOBJ.odeSimTime,max(ofOBJ.odeSimTime));
+                ofOBJ.odeSimTime,max(ofOBJ.odeSimTime),ofOBJ.concBound(1));
             
             simParas.conFxn = conFxn;
             simParas.lb = opCon_out.lb;
@@ -259,7 +276,7 @@ classdef OpenFLUX < handle
             ofOBJ.opCon = opCon_out;
             ofOBJ.opInput = opInput_out;
             ofOBJ.odeModel = odeModel_out;
-            ofOBJ.jacOut = jacOut_out;
+            
         end
         
         function [simEMU,simConc,simFlux,simTime] = simSoln(ofOBJ,xFeas)
@@ -271,21 +288,9 @@ classdef OpenFLUX < handle
             
         end
         
-
-        function prepOptimisation_ODE(ofOBJ)
-            [odeModel,fluxStoicTode,yLength,yLength_tag,Y2conc,Y0f,conc2X,EMUstate_struct,Y2concY] = genODEmodel(ofOBJ.EMUstate,...
-                ofOBJ.bigEMUmodel,ofOBJ.fluxStoicT,ofOBJ.Sint,ofOBJ.noEMUperm,ofOBJ.metListData);
-            
-            %%%generate jacobian
-            noCombineRxn = size(fluxStoicTode,1);
-            jacOut = genODEjac(yLength_tag,bigEMUmodel,odeModel,noCombineRxn,cauchyTags);
-            jacOut.Y2concY = Y2concY;
-            jacOut.fluxStoicTode = fluxStoicTode;
-            jacOut.orderS = orderS;
-        end
-        
-        function corruptData()
-        end
+                
+%         function corruptData()
+%         end
         
         function varOut = getPrivProp(ofOBJ,varName)
             %shortcut to access private properties from outside
@@ -294,16 +299,16 @@ classdef OpenFLUX < handle
         
         function indexOut = findEMUindex(ofOBJ,EMUname,EMUtag)
             if ofOBJ.isODEsolver
-                indexOut = find(matchEMU(EMUname,EMUtag,ofOBJ.opInput.yLength_tag(:,[1 2])));
+                indexOut = find(OpenFLUX.matchEMU(EMUname,EMUtag,ofOBJ.emuListODE(:,[1 2])));
             else            
                 hitRow = cell2mat(ofOBJ.bigEMUmodel(:,1))==sum(EMUtag);
-                hitEMU = matchEMU(EMUname,EMUtag,ofOBJ.bigEMUmodel{hitRow,2});
+                hitEMU = OpenFLUX.matchEMU(EMUname,EMUtag,ofOBJ.bigEMUmodel{hitRow,2});
                 hitIntMet = strcmp(EMUname,ofOBJ.metListInt);
                 indexOut = [find(hitRow) find(hitEMU) find(hitIntMet)];
             end
         end
         
-        function fitFxn = generateFitFxn(ofOBJ,radData)
+        function fitFxn = generateFitFxn(ofOBJ,additionalData)
             opInput = ofOBJ.opInput;
             %%%%unpack%%%%%
             varName = fieldnames(opInput);
@@ -317,19 +322,276 @@ classdef OpenFLUX < handle
                     EMUstate_struct,cauchyTags,fluxStoicTode,Y2concY,ofOBJ.jacOut,sampleTime,...
                     mFmap,mCmap,Ymat_Czeroed,mFmap_concDenon,dataMetConc_EXPvect,dataMetMID_EXPvect,...
                     dataMetSE_EXPvect,dataMetMID_SEvect,stagMap,cstag,stag_2_Y_map,Y_CM_stag,...
-                    YstagVect,YsimVect,dataMet,radData,noExpData,maxT);
+                    YstagVect,YsimVect,dataMet,additionalData,noExpData,maxT);
             else
+                
                fitFxn = @(x)leastSQ_SBR(x,CPmap,concMap,f_base,f_diff,c_base,c_diff,noT,Nout_int,...
                 noEMUperm,cauchyTags,Sint,deltaT,tSampleIndex,noTsample,dataMet,fluxStoicT,...
                 Nout,noExpData,dataMetConc_EXPvect,dataMetSE_EXPvect,dataMetMID_SIMvect,...
                 dataMetMID_EXPvect,dataMetMID_SEvect,EMUstateStoreIS_block,EMUstateStore,...
                 EMUstate,stagMap,cstag,metConcProfile_SIM,A_cell,Cmap_cell,Vmap_cell,EMUsize,...
-                radData); 
+                additionalData); 
             end
             
             
         end
+    end
+    
+    methods (Static)
+        function hitEMU = matchEMU(EMUname, EMUtag, EMUlist)
+            if isempty(EMUlist)
+                hitEMU = [];
+                return
+            end
+            
+            hitEMU = strcmp(EMUname,EMUlist(:,1));
+            for i = find(hitEMU)'
+                if ~all(EMUlist{i,2}==EMUtag)
+                    hitEMU(i) = false;
+                end
+            end
+        end
         
+        function [Nout, N_store] = bSplineMat(knotSeq,tData,order)
+            N_store = {};
+            noData = numel(tData);
+            noKnots = numel(knotSeq);
+            tData(end)=tData(end)-1e-8;
+            
+            %general requirements
+            ti = knotSeq(ones(noData,1),:)';
+            tDataMat = tData(ones(noKnots,1),:);
+            dataTdiff = tDataMat - ti; %left or term 1 form
+            
+            %contruct Ni,0
+            term1 = dataTdiff(1:end-1,:);
+            term2 = -dataTdiff(2:end,:);
+            Ni_0 = term1>=0 & term2>0;
+            Nin = +Ni_0;
+            N_store{end+1} = Nin;
+            for curOrder = 1:order-1
+                knotDiff = knotSeq(curOrder+1:end)-knotSeq(1:end-curOrder);
+                knotDiff(knotDiff==0) = inf;
+                knotDiff = 1./knotDiff;
+                term1_denom = diag(knotDiff(1:end-1));
+                term2_denom = diag(knotDiff(2:end));
+                term1 = dataTdiff(1:end-1-curOrder,:);
+                term2 = -dataTdiff(2+curOrder:end,:);
+                Nin = term1_denom*term1.*Nin(1:end-1,:) + term2_denom*term2.*Nin(2:end,:);
+                N_store{end+1} = Nin;
+            end
+            Nout = Nin;
+        end
+        
+        function CM = stepCV(CV,columns)
+            %author Lake-Ee Quek, AIBN
+            %to construction correction matrix (CM) from correction vector (CV)
+            %function CM = stepCV(CV,columns)
+            %specify CV: correction vector
+            %specify columns: number of columns for correction matrix (CM)
+            
+            %convert CV to column vector if CV is a row vector
+            if size(CV,2) > size(CV,1)
+                CV = CV';
+            end
+            
+            CM=[];
+            for i = 1:columns
+                CM(i:i+length(CV)-1,i) = CV;
+            end
+        end
+        
+        function CM = corrMatGen2(output_row, input_size, molform)
+            %author Lake-Ee Quek, AIBN
+            %function CM = corrMatGen(output_size, input_size, molform)
+            %to generate correction matrix from a given molecular formula
+            %example: outputMDV = CM * inputMDV
+            %output_size: length of output MDV (truncated length)
+            %input_size: lenght of input MDV (carbon backbone + 1)
+            %molform: molecular formula without carbon backbone
+            output_size=max(output_row);
+            if nargin == 2 || isempty(molform)==1
+                CM = eye(output_size,input_size);
+                return
+            end
+            
+            try
+                natDist;
+            catch
+                C_dist=[];
+                H_dist=[];
+                N_dist=[];
+                O_dist=[];
+                Si_dist=[];
+                S_dist=[];
+                P_dist=[];
+            end
+            %natural isotope distribution ref: van winden (2002), BnB
+            if isempty(C_dist)
+                C_dist=[0.9893 0.0107];
+            end
+            if isempty(H_dist)
+                H_dist=[0.999885 0.000115];
+            end
+            if isempty(N_dist)
+                N_dist=[0.99632 0.00368];
+                
+            end
+            if isempty(O_dist)
+                O_dist=[0.99757 0.00038 0.00205];
+            end
+            if isempty(Si_dist)
+                Si_dist=[0.922297 0.046832 0.030872];
+                
+            end
+            if isempty(S_dist)
+                S_dist=[0.9493 0.0076 0.0429 0.0002];
+            end
+            if isempty(P_dist)
+                P_dist=[1 0];
+            end
+            
+            pos = isletter(molform);
+            atom={};
+            atom{1} ='';
+            for i = 1:length(pos)
+                if pos(i)==1
+                    atom{end} = strcat(atom{end},molform(i));
+                elseif isempty(atom{end}) == 0
+                    atom{end+1} = '';
+                end
+            end
+            atom(end)=[];
+            
+            
+            coeff={};
+            coeff{1}='';
+            for i = 1:length(pos)
+                if pos(i)==0
+                    coeff{end} = strcat(coeff{end},molform(i));
+                elseif isempty(coeff{end}) == 0
+                    coeff{end+1} = '';
+                end
+            end
+            if length(coeff) ~= length(atom)
+                %     fprintf('error occured in %s\n',m);
+                fprintf('number of atom label (%1.0f labels) did not match coefficients (%1.0f coefficients)\n', length(atom), length(coeff));
+                fprintf('press Ctrl C to terminate');
+                pause(inf)
+            end
+            for i = 1:length(atom)
+                atom{i} = strcat(atom{i}, '_dist,', coeff{i});
+            end
+            CM=1;
+            for i = 1:length(atom)
+                CM = cauchy(CM,eval(['OpenFLUX.cVectGen2(' atom{i} ',output_size)'])');
+            end
+            CM = OpenFLUX.stepCV(CM,input_size);
+            CM = CM(1:output_size,:);
+            CM = CM(output_row,:);
+        end
+        
+        function [Acon, Bcon] = buildSBRcon(AconParas)
+            disp('generating SBR constraint matrices, please wait...');
+            noIntMets = AconParas.noIntMets;
+            noSteps = AconParas.noSteps;
+            noX = AconParas.noX;
+            noReactions = AconParas.noReactions;
+            Nout_int = AconParas.Nout_int;
+            CPmap = AconParas.CPmap;
+            Sint = AconParas.Sint;
+            diff_vect = AconParas.diff_vect;
+            base_vect = AconParas.base_vect;
+            concBound = AconParas.concBound;
+            concMap = AconParas.concMap;
+            
+            bigNmat = zeros(noIntMets*noSteps,noX);
+            tIndex = 1:noIntMets;
+            for tSlice = 1:noSteps
+                bigN = zeros(noIntMets,noX);
+                for i = 1:noIntMets
+                    NintSlice = Nout_int(:,tSlice)';
+                    for j = 1:noReactions
+                        Ncols = CPmap(j,:);
+                        bigN(i,Ncols) = NintSlice*Sint(i,j)+bigN(i,Ncols);
+                    end
+                    bigN(i,concMap(i)) = 1;
+                end
+                bigNmat((tSlice-1)*noIntMets+tIndex,:) = bigN;
+            end
+            Acon = sparse(-bigNmat*diag(diff_vect));
+            Bcon = bigNmat*base_vect-concBound(1)*ones(noSteps*noIntMets,1);
+        end        
+        
+        function corr_vect = cVectGen2(iDist, ele, MIDlength)
+            %%%author Lake-Ee Quek, AIBN
+            %function corr_vect = cVectGen2(iDist, ele, MIDlength)
+            %generate correction vector for a given natural isotope distribution vector and number of atomic elements
+            %iDist = isotopomer distribution row vector of the atom (from from m0, m1,m2,...)
+            %ele = number of atoms
+            %MIDlength = MID vector length (i.e, mass increments, include m0)
+            % clearvars
+            % clc
+            % iDist = [0.9 0.06 0.03 0.01];
+            % ele = 7;
+            % MIDlength = 5;
+            %doesnt add up to 1 unless MIDlength = ele+(iDit-1)*2
+            
+            corr_vect = zeros(MIDlength,1);
+            
+            noIsotope = length(iDist);
+            if ele < MIDlength
+                sampleTable = zeros(1,ele);
+            else
+                sampleTable = zeros(1,MIDlength);
+            end
+            
+            for i = 1:noIsotope-1
+                noSamples = floor((MIDlength-1)/i);
+                if  noSamples > ele
+                    noSamples = ele;
+                end
+                sampleTable = [sampleTable ones(1,noSamples)*i];
+            end
+            
+            if ele>MIDlength
+                combi = combnk(sampleTable,MIDlength);
+                combi = [zeros(size(combi,1),ele-MIDlength) combi];
+            else
+                combi = combnk(sampleTable,ele);
+            end
+            
+            combi_sum = sum(combi,2);
+            
+            for i = 1:MIDlength
+                hit = combi_sum == i-1;
+                combi_hit_unique = unique(combi(hit,:),'rows');
+                
+                probabilitySum = 0;
+                for j = 1:size(combi_hit_unique,1)
+                    %         totalPerms = unique(perms(combi_hit_unique(j,:)),'rows'); %for actual comparison
+                    
+                    %calculate analytically
+                    [isotope_unique,~,index_B] = unique(combi_hit_unique(j,:));
+                    countOcc = zeros(1,numel(isotope_unique));
+                    eleNow = ele;
+                    noPerms = 1;
+                    probMultiply = 1;
+                    for k = 1:numel(isotope_unique)
+                        noOcc = sum(index_B==k);
+                        countOcc(k) = noOcc;
+                        probMultiply = probMultiply*iDist(isotope_unique(k)+1)^noOcc;
+                        if eleNow>noOcc
+                            noPerms = noPerms*nchoosek(eleNow,noOcc);
+                        end
+                        eleNow = eleNow - noOcc;
+                    end
+                    %         disp([size(totalPerms,1) noPerms]);%validate occurance
+                    probabilitySum = probabilitySum + noPerms*probMultiply;
+                end
+                corr_vect(i) = probabilitySum;
+            end
+        end
         
     end
 end
@@ -726,12 +988,12 @@ while cc <= size(EMUrxnList,1)
     EMUPtag = EMUrxnList{cc,5};
     hitName = strcmp(EMUPname,EMUsimulated(:,1));
     
-    if any(matchEMU(EMUPname,EMUPtag,EMUsimulated))
+    if any(OpenFLUX.matchEMU(EMUPname,EMUPtag,EMUsimulated))
         cc = cc + 1;
         continue
     end
     
-    hitRow = matchEMU(EMUPname,EMUPtag,EMUrxnList(:,[4,5]));
+    hitRow = OpenFLUX.matchEMU(EMUPname,EMUPtag,EMUrxnList(:,[4,5]));
     EMUr = {};
     EMUr_rxn = [];
     %collect all possible reactants
@@ -821,32 +1083,32 @@ while ~isempty(EMUsimulated)
             X_block{pRow,1} = EMUname;
             X_block{pRow,2} = EMUtag;
             
-            if ~any(matchEMU(EMUname,EMUtag,EMUcalculated))
+            if ~any(OpenFLUX.matchEMU(EMUname,EMUtag,EMUcalculated))
                 EMUcalculatedNew(end+1,:) = EMUtoTrack(hitEMU_tt,:);
             end
             
             %check if repeat of emu simulated, then delete
-            hitRepeat = matchEMU(EMUname,EMUtag,EMUsimulated);
+            hitRepeat = OpenFLUX.matchEMU(EMUname,EMUtag,EMUsimulated);
             if any(hitRepeat)
                 EMUsimulated(hitRepeat,:) = [];
             end
             
             EMUtoTrack(hitEMU_tt,:) = [];
-            hitEMUs_p = matchEMU(EMUname,EMUtag,EMUrxnList(:,[4 5]));
+            hitEMUs_p = OpenFLUX.matchEMU(EMUname,EMUtag,EMUrxnList(:,[4 5]));
             for i = find(hitEMUs_p)'%matched reaction with such product
                 %now check reactants
                 if numel(EMUrxnList{i,6}) == 1
                     %match known
                     EMUrName = EMUrxnList{i,6}{1};
                     EMUrTag = EMUrxnList{i,7}{1};
-                    if any(matchEMU(EMUrName,EMUrTag,EMUcalculated))
+                    if any(OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUcalculated))
                         rCol = rCol + 1;
                         Y_block{rCol,1} = EMUrName;
                         Y_block{rCol,2} = EMUrTag;
                         continue
                     end
                     %match input substrate
-                    if any(matchEMU(EMUrName,EMUrTag,EMUinputSubstrates))
+                    if any(OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUinputSubstrates))
                         rCol = rCol + 1;
                         Y_block{rCol,1} = EMUrName;
                         Y_block{rCol,2} = EMUrTag;
@@ -857,7 +1119,7 @@ while ~isempty(EMUsimulated)
                     X_block{pRow,1} = EMUrName;
                     X_block{pRow,2} = EMUrTag;
                     
-                    if ~any(matchEMU(EMUrName,EMUrTag,EMUcalculatedNew))
+                    if ~any(OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUcalculatedNew))
                         EMUtoTrack{end+1,1} = EMUrName;
                         EMUtoTrack{end,2} = EMUrTag;
                         EMUtoTrack{end,3} = sum(EMUrTag);
@@ -869,9 +1131,9 @@ while ~isempty(EMUsimulated)
                     rCol = rCol + 1;
                     Y_block{rCol,1} = EMUrName;
                     Y_block{rCol,2} = EMUrTag;
-                    hit1 = matchEMU(EMUrName,EMUrTag,EMUcalculated);
-                    hit2 = matchEMU(EMUrName,EMUrTag,EMUinputSubstrates);
-                    hit3 = matchEMU(EMUrName,EMUrTag,EMUcalculatedNew);
+                    hit1 = OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUcalculated);
+                    hit2 = OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUinputSubstrates);
+                    hit3 = OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUcalculatedNew);
                     if ~any(hit1) && ~any(hit2) && ~any(hit3)
                         EMUtoTrack{end+1,1} = EMUrName;
                         EMUtoTrack{end,2} = EMUrTag;
@@ -882,9 +1144,9 @@ while ~isempty(EMUsimulated)
                     EMUrTag = EMUrxnList{i,7}{2};
                     Y_block{rCol,3} = EMUrName;
                     Y_block{rCol,4} = EMUrTag;
-                    hit1 = matchEMU(EMUrName,EMUrTag,EMUcalculated(:,[1 2]));
-                    hit2 = matchEMU(EMUrName,EMUrTag,EMUinputSubstrates(:,[1 2]));
-                    hit3 = matchEMU(EMUrName,EMUrTag,EMUcalculatedNew);
+                    hit1 = OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUcalculated(:,[1 2]));
+                    hit2 = OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUinputSubstrates(:,[1 2]));
+                    hit3 = OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUcalculatedNew);
                     if ~any(hit1) && ~any(hit2) && ~any(hit3)
                         EMUtoTrack{end+1,1} = EMUrName;
                         EMUtoTrack{end,2} = EMUrTag;
@@ -918,7 +1180,7 @@ while ~isempty(EMUsimulated)
         B_block_size = [size(X_block,1) size(Y_block,1)];
         
         for i = 1:size(X_block,1)
-            hitEMU = matchEMU(X_block{i,1},X_block{i,2},EMUrxnList(:,[4,5]));
+            hitEMU = OpenFLUX.matchEMU(X_block{i,1},X_block{i,2},EMUrxnList(:,[4,5]));
             for j = find(hitEMU)'
                 %match to Y_block, cauchy
                 if numel(EMUrxnList{j,6})==2
@@ -949,7 +1211,7 @@ while ~isempty(EMUsimulated)
                 EMUrName = EMUrxnList{j,6}{1}; EMUrTag = EMUrxnList{j,7}{1};
                 
                 %match to Y_block, input substrate
-                if any(matchEMU(EMUrName,EMUrTag,EMUinputSubstrates(:,[1 2])))
+                if any(OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUinputSubstrates(:,[1 2])))
                     for k = 1:size(Y_block,1)
                         if strcmp(EMUrName,Y_block{k,1}) && all(EMUrTag==Y_block{k,2})
                             B_block(end+1,:) = [i k -EMUrxnList{j,3} EMUrxnList{j,2}];
@@ -959,7 +1221,7 @@ while ~isempty(EMUsimulated)
                 end
                 %%%%%
                 %match to Y_block, known
-                if any(matchEMU(EMUrName,EMUrTag,EMUcalculated(:,[1 2])))
+                if any(OpenFLUX.matchEMU(EMUrName,EMUrTag,EMUcalculated(:,[1 2])))
                     for k = 1:size(Y_block,1)
                         if strcmp(EMUrName,Y_block{k,1}) && all(EMUrTag==Y_block{k,2})
                             B_block(end+1,:) = [i k -EMUrxnList{j,3} EMUrxnList{j,2}];
@@ -1375,7 +1637,7 @@ end
 EMUreactants = removeEMUduplicate(EMUreactants);
 hitAnyProd = false(size(EMUreactants,1),1);
 for i = 1:size(EMUreactants,1)
-    if any(matchEMU(EMUreactants{i,1},EMUreactants{i,2},EMUrxnList(:,[4,5])))
+    if any(OpenFLUX.matchEMU(EMUreactants{i,1},EMUreactants{i,2},EMUrxnList(:,[4,5])))
         hitAnyProd(i) = true;
     end
 end
@@ -1407,22 +1669,6 @@ while cc <= size(EMUin,1)
     cc = cc + 1;
 end
 EMUout = EMUin;
-end
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function hitEMU = matchEMU(EMUname, EMUtag, EMUlist)
-if isempty(EMUlist)
-    hitEMU = [];
-    return
-end
-
-hitEMU = strcmp(EMUname,EMUlist(:,1));
-for i = find(hitEMU)'
-    if ~all(EMUlist{i,2}==EMUtag)
-        hitEMU(i) = false;
-    end
-end
 end
 
 
@@ -1524,12 +1770,12 @@ for i = 1:size(EMUsizes,1)
     %go through each EMU column and populate the flux coefficients
     %(reaction# and stoic)
     for j = 1:size(EMUvars,1)
-        hitRows = matchEMU(EMUvars{j,1},EMUvars{j,2},EMUrxnList(:,[4,5]));%find EMUrxn
+        hitRows = OpenFLUX.matchEMU(EMUvars{j,1},EMUvars{j,2},EMUrxnList(:,[4,5]));%find EMUrxn
         for k = find(hitRows)'
             if numel(EMUrxnList{k,6})==1%match single or input
-                hitReactEMU = matchEMU(EMUrxnList{k,6},EMUrxnList{k,7}{1},EMUvars);%match single
+                hitReactEMU = OpenFLUX.matchEMU(EMUrxnList{k,6},EMUrxnList{k,7}{1},EMUvars);%match single
                 if ~any(hitReactEMU)%match input
-                    hitInputEMU = matchEMU(EMUrxnList{k,6},EMUrxnList{k,7}{1},EMUinputVars);
+                    hitInputEMU = OpenFLUX.matchEMU(EMUrxnList{k,6},EMUrxnList{k,7}{1},EMUinputVars);
                     hitCol = find(hitInputEMU) + sum(hits);
                     if isempty(fluxMatMap{j,hitCol})
                         fluxMatMap{j,hitCol} = [EMUrxnList{k,2} EMUrxnList{k,3}];
@@ -1547,10 +1793,10 @@ for i = 1:size(EMUsizes,1)
             else%match cauchy
                 EMUname1 = EMUrxnList{k,6}{1}; EMUname2 = EMUrxnList{k,6}{2};
                 EMUtag1 = EMUrxnList{k,7}{1}; EMUtag2 = EMUrxnList{k,7}{2};
-                hit1set1 = matchEMU(EMUname1, EMUtag1, EMUcauchyvars(:,[1 2]));
-                hit1set2 = matchEMU(EMUname1, EMUtag1, EMUcauchyvars(:,[3 4]));
-                hit2set1 = matchEMU(EMUname2, EMUtag2, EMUcauchyvars(:,[1 2]));
-                hit2set2 = matchEMU(EMUname2, EMUtag2, EMUcauchyvars(:,[3 4]));
+                hit1set1 = OpenFLUX.matchEMU(EMUname1, EMUtag1, EMUcauchyvars(:,[1 2]));
+                hit1set2 = OpenFLUX.matchEMU(EMUname1, EMUtag1, EMUcauchyvars(:,[3 4]));
+                hit2set1 = OpenFLUX.matchEMU(EMUname2, EMUtag2, EMUcauchyvars(:,[1 2]));
+                hit2set2 = OpenFLUX.matchEMU(EMUname2, EMUtag2, EMUcauchyvars(:,[3 4]));
                 hitCauchy = (hit1set1 | hit1set2) & (hit2set1 | hit2set2);
                 hitCol = find(hitCauchy,1) + sum(hits) + sum(hitsI);
                 
@@ -1747,12 +1993,12 @@ for i = 1:size(ofOBJ.EMUinputSubstrates,1)
         pos13Cenrich = ofOBJ.labelledSub{hitRow,2};
         ISmid = 1;
         for j = find(emutag==1)
-            ISmid = cauchy(ISmid,cVectGen2([1-pos13Cenrich(j) pos13Cenrich(j)],1,2)')';
+            ISmid = cauchy(ISmid,OpenFLUX.cVectGen2([1-pos13Cenrich(j) pos13Cenrich(j)],1,2)')';
         end
         modRows(hitRow) = true;
     else %%not a labelled substrate
-        bb6 = cVectGen2([0 1],6,7);
-        ISmid = cVectGen2([1-ofOBJ.natSub13Cenrich ofOBJ.natSub13Cenrich],sum(emutag),sum(emutag)+1);
+        bb6 = OpenFLUX.cVectGen2([0 1],6,7);
+        ISmid = OpenFLUX.cVectGen2([1-ofOBJ.natSub13Cenrich ofOBJ.natSub13Cenrich],sum(emutag),sum(emutag)+1);
     end
     EMUinsubMID{i} = ISmid;
 end
@@ -1787,10 +2033,10 @@ for i = 1:noEMUperm
         EMUtag1 = bigEMUmodel{i,4}{j,2}; EMUtag2 = bigEMUmodel{i,4}{j,4};
         
         hitRow1 = cell2mat(bigEMUmodel(:,1))==sum(EMUtag1);
-        hitEMUrow1 = matchEMU(EMUname1,EMUtag1,bigEMUmodel{hitRow1,8});%hit combined EMUs
+        hitEMUrow1 = OpenFLUX.matchEMU(EMUname1,EMUtag1,bigEMUmodel{hitRow1,8});%hit combined EMUs
         
         hitRow2 = cell2mat(bigEMUmodel(:,1))==sum(EMUtag2);
-        hitEMUrow2 = matchEMU(EMUname2,EMUtag2,bigEMUmodel{hitRow2,8});
+        hitEMUrow2 = OpenFLUX.matchEMU(EMUname2,EMUtag2,bigEMUmodel{hitRow2,8});
         
         tagMatrix(end+1,:) = [find(hitRow1) find(hitEMUrow1) find(hitRow2) find(hitEMUrow2)];
     end
@@ -1799,7 +2045,7 @@ end
 %%%EMU inputsubstrates and initial
 for i = 1:noEMUperm
     for j = 1:size(bigEMUmodel{i,3},1)
-        hit = matchEMU(bigEMUmodel{i,3}{j,1},bigEMUmodel{i,3}{j,2}, ofOBJ.EMUinputSubstrates);
+        hit = OpenFLUX.matchEMU(bigEMUmodel{i,3}{j,1},bigEMUmodel{i,3}{j,2}, ofOBJ.EMUinputSubstrates);
         bigEMUmodel{i,3}{j,3} = find(hit);
     end
 end
@@ -1826,7 +2072,7 @@ EMUstate = cell(noEMUperm,2);
 
 for i = 1:noEMUperm
     EMUsize = bigEMUmodel{i,1};
-    EMUvect = cVectGen2([1-ofOBJ.natEndo13Cenrich, ofOBJ.natEndo13Cenrich],EMUsize,EMUsize+1)';
+    EMUvect = OpenFLUX.cVectGen2([1-ofOBJ.natEndo13Cenrich, ofOBJ.natEndo13Cenrich],EMUsize,EMUsize+1)';
     matNowCalc = EMUvect(ones(size(bigEMUmodel{i,2},1),1),:);
     matNowCauchy = EMUvect(ones(size(bigEMUmodel{i,4},1),1),:);
     EMUstate{i,1} = [matNowCalc; EMUstateStoreIS_block{1,i}];
@@ -1872,9 +2118,9 @@ noKnots = numel(ofOBJ.intKntPos)+2*orderS;
 noParaPerFlux = noKnots - orderS;
 xKnot = ofOBJ.intKntPos;
 knotSeq = [zeros(1,orderS) xKnot ones(1,orderS)];
-Nout = bSplineMat(knotSeq,tSimScale,orderS);
+Nout = OpenFLUX.bSplineMat(knotSeq,tSimScale,orderS);
 knotSeqInt = [knotSeq 1];%%didn't add a LHS zero (then don't need [0 CP])
-Nout_int = bSplineMat(knotSeqInt,tSimScale,orderS+1);
+Nout_int = OpenFLUX.bSplineMat(knotSeqInt,tSimScale,orderS+1);
 tIntMat = zeros(noParaPerFlux);
 for i = 1:noParaPerFlux
     tIntMat(i,i:end) = knotSeqInt(i+orderS)-knotSeqInt(i);
@@ -2028,8 +2274,8 @@ for i = 1:size(dataMet,1)
     formulaRow = find(strcmp(dataMetName,expMIDs(:,1)));
     metEMUsize =  sum(expMIDs{formulaRow,2});
     hitRow = cell2mat(ofOBJ.bigEMUmodel(:,1))==metEMUsize;
-    hitEMU = matchEMU(expMIDs{formulaRow,1},expMIDs{formulaRow,2},ofOBJ.bigEMUmodel{hitRow,2});
-    CM = corrMatGen2([1:metEMUsize+1],metEMUsize+1,expMIDs{formulaRow,3});%this one is not normalized, for abs calc
+    hitEMU = OpenFLUX.matchEMU(expMIDs{formulaRow,1},expMIDs{formulaRow,2},ofOBJ.bigEMUmodel{hitRow,2});
+    CM = OpenFLUX.corrMatGen2([1:metEMUsize+1],metEMUsize+1,expMIDs{formulaRow,3});%this one is not normalized, for abs calc
     
     unlabelledVect =  ofOBJ.EMUstate{hitRow,1}(hitEMU,:)';
     
@@ -2128,25 +2374,19 @@ if ofOBJ.isODEsolver
 end
 
 %%%n mat incorporate stoichiometry%%
-bigNmat = zeros(ofOBJ.noIntMets*ofOBJ.noSteps,noX);
-tIndex = 1:ofOBJ.noIntMets;
-for tSlice = 1:ofOBJ.noSteps
-    bigN = zeros(ofOBJ.noIntMets,noX);
-    for i = 1:ofOBJ.noIntMets
-        NintSlice = ofOBJ.Nout_int(:,tSlice)';
-        for j = 1:ofOBJ.noReactions
-            Ncols = CPmap(j,:);
-            bigN(i,Ncols) = NintSlice*ofOBJ.Sint(i,j)+bigN(i,Ncols);
-        end
-        bigN(i,concMap(i)) = 1;
-    end
-    bigNmat((tSlice-1)*ofOBJ.noIntMets+tIndex,:) = bigN;
-end
-Acon = sparse(-bigNmat*diag(diff_vect));
-Bcon = bigNmat*base_vect-ofOBJ.concBound(1)*ones(ofOBJ.noSteps*ofOBJ.noIntMets,1);
+AconParas.noIntMets = ofOBJ.noIntMets;
+AconParas.noSteps = ofOBJ.noSteps;
+AconParas.noX = noX;
+AconParas.noReactions = ofOBJ.noReactions;
+AconParas.Nout_int = ofOBJ.Nout_int;
+AconParas.CPmap = CPmap;
+AconParas.Sint = ofOBJ.Sint;
+AconParas.diff_vect = diff_vect;
+AconParas.base_vect = base_vect;
+AconParas.concBound = ofOBJ.concBound;
+AconParas.concMap = concMap;
+opCon.AconParas = AconParas;
 
-opCon.Acon = Acon;
-opCon.Bcon = Bcon;
 opInput.noT = ofOBJ.noSteps;
 opInput.Nout_int = ofOBJ.Nout_int;
 opInput.deltaT = [0 diff(ofOBJ.simTime)];
@@ -2213,26 +2453,20 @@ if ofOBJ.isODEsolver
     opInput.knotSeq = ofOBJ.knotSeq;
    return 
 end
-%%%n mat incorporate stoichiometry%%
-bigNmat = zeros(ofOBJ.noIntMets*ofOBJ.noSteps,noX);
-tIndex = 1:ofOBJ.noIntMets;
-for tSlice = 1:ofOBJ.noSteps
-    bigN = zeros(ofOBJ.noIntMets,noX);
-    for i = 1:ofOBJ.noIntMets
-        NintSlice = ofOBJ.Nout_int(:,tSlice)';
-        for j = 1:ofOBJ.noReactions
-            Ncols = CPmap(j,:);
-            bigN(i,Ncols) = NintSlice*ofOBJ.Sint(i,j)+bigN(i,Ncols);
-        end
-        bigN(i,concMap(i)) = 1;
-    end
-    bigNmat((tSlice-1)*ofOBJ.noIntMets+tIndex,:) = bigN;
-end
-Acon = sparse(-bigNmat*diag(diff_vect));
-Bcon = bigNmat*base_vect-ofOBJ.concBound(1)*ones(ofOBJ.noSteps*ofOBJ.noIntMets,1);
 
-opCon.Acon = Acon;
-opCon.Bcon = Bcon;
+AconParas.noIntMets = ofOBJ.noIntMets;
+AconParas.noSteps = ofOBJ.noSteps;
+AconParas.noX = noX;
+AconParas.noReactions = ofOBJ.noReactions;
+AconParas.Nout_int = ofOBJ.Nout_int;
+AconParas.CPmap = CPmap;
+AconParas.Sint = ofOBJ.Sint;
+AconParas.diff_vect = diff_vect;
+AconParas.base_vect = base_vect;
+AconParas.concBound = ofOBJ.concBound;
+AconParas.concMap = concMap;
+opCon.AconParas = AconParas;
+
 opInput.noT = ofOBJ.noSteps;
 opInput.Nout_int = ofOBJ.Nout_int;
 opInput.deltaT = [0 diff(ofOBJ.simTime)];
@@ -2447,13 +2681,13 @@ end
 %%%%%(need to change to longest)%%%%
 Y2conc = zeros(noIntMets,yLength);
 for i = 1:noIntMets
-    hitEMU = matchEMU(metListData{i,1}, ones(1,metListData{i,6}), yLength_tag(:,[1 2]));
+    hitEMU = OpenFLUX.matchEMU(metListData{i,1}, ones(1,metListData{i,6}), yLength_tag(:,[1 2]));
     Y2conc(i,hitEMU) = 1;
 end
 
 Y2concY = zeros(yLength);
 for i = 1:yLength
-    hitEMU = matchEMU(yLength_tag{i,1}, yLength_tag{i,2}, yLength_tag(:,[1 2]));
+    hitEMU = OpenFLUX.matchEMU(yLength_tag{i,1}, yLength_tag{i,2}, yLength_tag(:,[1 2]));
     Y2concY(i,hitEMU) = 1;
 end
 
@@ -2482,6 +2716,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function jacOut = genODEjac(yLength_tag,bigEMUmodel,odeModel,noCombineRxn,cauchyTags)
+disp('generating jacobian, please wait...')
 noEMUperm = size(bigEMUmodel,1);
 yLength = size(yLength_tag,1);
 

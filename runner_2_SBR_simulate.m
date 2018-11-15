@@ -5,16 +5,17 @@
 %%%knot position fixed to settings%%%
 clearvars
 clc
+% rng('shuffle');
 reLoadData = true;
 reLoadData = false;
 if reLoadData
-    load OFobj_SBRsim
+    load SBR_OFobj_sim
 else
     load OFobj
     OF.isODEsolver = false;
     OF.genLabelledSubstrate;
     simParas = OF.prepSimulation;
-    save OFobj_SBRsim OF simParas
+    save SBR_OFobj_sim OF simParas
 end
 
 x0 = rand(size(simParas.lb));
@@ -32,4 +33,3 @@ while 1
 end
 
 [simEMU,simConc,simFlux,simTime] = OF.simSoln(xFeas);
-

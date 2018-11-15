@@ -4,16 +4,17 @@
 %%%exclude stagnant (data dependent)%%%
 clearvars
 clc
+% rng('shuffle');
 reLoadData = true;
 reLoadData = false;
 if reLoadData
-    load OFobj_ODEsim
+    load ODE_OFobj_sim
 else
     load OFobj
     OF.isODEsolver = true;
     OF.genLabelledSubstrate;
     simParas = OF.prepSimulation;
-    save OFobj_ODEsim OF simParas
+    save ODE_OFobj_sim OF simParas
 end
 x0 = rand(size(simParas.lb));
 opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',40000);
@@ -32,4 +33,3 @@ while 1
 end
 
 [simEMU,simConc,simFlux,simTime] = OF.simSoln(xFeas);
-
