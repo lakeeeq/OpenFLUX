@@ -58,7 +58,7 @@ end
 
 
 tStart = tic;
-disp('running optimisation...')
+disp('running optimisation, once...')
 if opSave.isODE
     [xFinish,fval,exitflag]= fmincon(opSave.fitFxn,xStart,[],[],[],[],opSave.lb,opSave.ub,opSave.conFxn,opOptions);
 %     xFinish = xStart;fval = 1e11;exitflag = -1;

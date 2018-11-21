@@ -64,25 +64,32 @@ if runFeas
 end
 
 tStart = tic;
-disp('running optimisation...')
-if opSave.isODE
-    [xFinish,fval,exitflag]= fmincon(opSave.fitFxn,xStart,[],[],[],[],opSave.lb,opSave.ub,opSave.conFxn,opOptions);
-%     xFinish = xStart;fval = 1e11;exitflag = -1;
-else   
-    [xFinish,fval,exitflag]= fmincon(opSave.fitFxn,xStart,Acon,Bcon,[],[],opSave.lb,opSave.ub,[],opOptions);
-%     xFinish = xStart;fval = 1e11;exitflag = -1; 
+disp('running optimisation, loop...')
+while 1
+    if opSave.isODE
+        [xFinish,fval,exitflag]= fmincon(opSave.fitFxn,xStart,[],[],[],[],opSave.lb,opSave.ub,opSave.conFxn,opOptions);
+        %     xFinish = xStart;fval = 1e11;exitflag = -1;
+    else
+        [xFinish,fval,exitflag]= fmincon(opSave.fitFxn,xStart,Acon,Bcon,[],[],opSave.lb,opSave.ub,[],opOptions);
+        %     xFinish = xStart;fval = 1e11;exitflag = -1;
+    end
+    tElapse = toc(tStart);
+    
+    opSave.solnIndex = opSave.solnIndex+1;
+    opSave.xFitSeries(opSave.solnIndex).saveTime = datetime;
+    opSave.xFitSeries(opSave.solnIndex).xStart = xStart;
+    opSave.xFitSeries(opSave.solnIndex).xFinish = xFinish;
+    opSave.xFitSeries(opSave.solnIndex).tElapse = tElapse;
+    opSave.xFitSeries(opSave.solnIndex).fval = fval;
+    opSave.xFitSeries(opSave.solnIndex).exitflag = exitflag;
+    if ~opSave.isODE
+        opSave.xFitSeries(opSave.solnIndex).stepBTWsample = opSave.stepBTWsample;
+    end
+    save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
+    disp('optimisation saved...')
+    if exitflag >0
+        break
+    else
+        xStart = xFinish;
+    end
 end
-tElapse = toc(tStart);
-
-opSave.solnIndex = opSave.solnIndex+1;
-opSave.xFitSeries(opSave.solnIndex).saveTime = datetime;
-opSave.xFitSeries(opSave.solnIndex).xStart = xStart;
-opSave.xFitSeries(opSave.solnIndex).xFinish = xFinish;
-opSave.xFitSeries(opSave.solnIndex).tElapse = tElapse;
-opSave.xFitSeries(opSave.solnIndex).fval = fval;
-opSave.xFitSeries(opSave.solnIndex).exitflag = exitflag;
-if ~opSave.isODE
-    opSave.xFitSeries(opSave.solnIndex).stepBTWsample = opSave.stepBTWsample;
-end
-save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
-disp('optimisation saved...')

@@ -56,7 +56,7 @@ additionalDataScript
 %%%%%%%%%%%
 
 %%%%run this to generate many optimisation instances for HPC
-% %{
+%{
 opSave.lb = simParas.lb;
 opSave.ub = simParas.ub;
 opSave.xFeas = [];
@@ -121,11 +121,13 @@ else
     opSave.saveFileName = strcat(['SBRop_' char(opSave.datetimeCreated) '.mat']);
 end
 save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
+disp('optimisation file created');
 % return%%%terminate here for HPC/batch processing%%%
 %%%%continue to test optimisation%%%%
 opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',10000);
 
 xGuess = x0;
+disp('finding feasible soln');
 if opSave.isODE
     while 1
         xFeas = fmincon(@(x)minDistX0(x,opSave.x0),xGuess,[],[],[],[],opSave.lb,opSave.ub,opSave.conFxn,opOptions);
@@ -151,8 +153,9 @@ save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
 
 
 %%%running optimisation%%%
+disp('finding optimum soln');
 disp(fitFxn(xFeas));
-return
+% return
 xStart = xFeas;
 tStart = tic;
 if opSave.isODE
