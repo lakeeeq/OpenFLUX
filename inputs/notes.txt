@@ -1,0 +1,3 @@
+metabolite concentration units: pmol/mg protein
+flux units: pmol/mg protein/min
+deltaT unit: min

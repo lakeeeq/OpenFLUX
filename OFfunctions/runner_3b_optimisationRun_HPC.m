@@ -1,11 +1,11 @@
-function runner_3b_optimisationRun_HPC(intRun)
+function runner_3b_optimisationRun_HPC(intRun,opFileListName,opSaveFolder)
 if ischar(intRun)
     intRun = str2num(intRun);
 end
 addpath OFfunctions
-load fileList_HPC
-opSaveFolder = 'OPinstances/';
-fileToLoad = fileList_HPC(intRun).name;
+load(opFileListName);
+
+fileToLoad = fileListHPC{intRun};
 
 disp(['loading file ' fileToLoad]);
 load(strcat(opSaveFolder,fileToLoad));
@@ -46,6 +46,9 @@ if runFeas
                 xGuess = xFeas;
             end
         end
+        if opSave.bumpUpXFeasIniConc
+            xFeas = OF.simSolnODE_stepConc(xFeas);
+        end
     else
         while 1
             xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,Acon,Bcon,[],[],opSave.lb,opSave.ub,[],opOptions);
@@ -59,7 +62,7 @@ if runFeas
     xStart = xFeas;
     if isempty(opSave.xFeas)
         opSave.xFeas = xFeas;
-        save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
+        save(strcat(opSaveFolder, opSave.saveFileName), 'opSave','OF');
     end
 end
 
@@ -85,7 +88,7 @@ while 1
     if ~opSave.isODE
         opSave.xFitSeries(opSave.solnIndex).stepBTWsample = opSave.stepBTWsample;
     end
-    save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
+    save(strcat(opSaveFolder, opSave.saveFileName), 'opSave','OF');
     disp('optimisation saved...')
     if exitflag >0
         break

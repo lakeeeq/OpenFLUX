@@ -1,5 +1,4 @@
-function runner_3b_optimisationRun(fileToLoad)
-opSaveFolder = 'OPinstances/';
+function runner_3b_optimisationRun(opSaveFolder,fileToLoad)
 disp(['loading file ' fileToLoad]);
 load(strcat(opSaveFolder,fileToLoad));
 disp([opSave.saveFileName ' loaded']);
@@ -16,7 +15,7 @@ if isempty(opSave.xFeas)%get first feasible soln
     xGuess = x0;
 elseif opSave.solnIndex == 0%%there is a feasible soln, but not optimised
     xStart = opSave.xFeas;
-elseif ~opSave.isODE && ~all(opSave.stepBTWsample==opSave.xFitSeries(opSave.solnIndex).stepBTWsample) %change in resolution
+elseif ~opSave.isODE && ~all(opSave.stepBTWsample==opSave.xFitSeries(opSave.solnIndex).stepBTWsample) %change in SBR step size
     runFeas = true;
     x0 = opSave.xFitSeries(opSave.solnIndex).xFinish;%not too far from last op soln
     xGuess = x0;
@@ -39,6 +38,9 @@ if runFeas
                 xGuess = xFeas;
             end
         end
+        if opSave.bumpUpXFeasIniConc
+            xFeas = OF.simSolnODE_stepConc(xFeas);
+        end
     else
         while 1
             xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,Acon,Bcon,[],[],opSave.lb,opSave.ub,[],opOptions);
@@ -52,7 +54,7 @@ if runFeas
     xStart = xFeas;
     if isempty(opSave.xFeas)
         opSave.xFeas = xFeas;
-        save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
+        save(strcat(opSaveFolder, opSave.saveFileName), 'opSave','OF');
     end
 end
 
@@ -78,5 +80,5 @@ opSave.xFitSeries(opSave.solnIndex).exitflag = exitflag;
 if ~opSave.isODE
     opSave.xFitSeries(opSave.solnIndex).stepBTWsample = opSave.stepBTWsample;
 end
-save(strcat(opSaveFolder, opSave.saveFileName), 'opSave');
+save(strcat(opSaveFolder, opSave.saveFileName), 'opSave','OF');
 disp('optimisation saved...')
