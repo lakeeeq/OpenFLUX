@@ -1,36 +1,41 @@
-OFspec.modelObjSaveName = 'OFobj_SBR';
-% OFspec.isODEsolver = true;%choose ODE
-OFspec.isODEsolver = false;%choose SBR
+addpath inputs_1 %put modelling inputs in this folder
+
 switch scriptCalling
     case 'runner_1_modelSetup'
+        OFspec.modelObjSaveName = 'OFobj_SBR';
+        % OFspec.isODEsolver = true;%choose ODE
+        OFspec.isODEsolver = false;%choose SBR
+        
         OFspec.modelCondition = 'insulin';%tag for OF object
         OFspec.modelFileName = 'model.txt';%metabolic model
         OFspec.ionFormFileName = 'metIonFormula.txt';%formula for MZs, natural isotope correction
-        OFspec.natEndo13Cenrich = 0.0107;%endogenous metabolites' natural carbon enrichment
-        OFspec.natSub13Cenrich = 0.0107;%input substrates' natural carbon enrichment
         OFspec.intKntPos = [0.2];%specify bspline internal knots
         OFspec.orderS = 3;%specify bspline order
         OFspec.labelledSub = {'GLC_in' [0.99 0.99 0.99 0.99 0.99 0.99]};%%%specify positional enrichment
         OFspec.sampleTime = [1 5 10 20 40 60];%indicate sampling time points (still required for simulations)
-                
+        
         OFspec.stepBTWsample = [20 20 20 20 20 20];%required for SBR, low res
         % OFspec.stepBTWsample = [500 400 200 75 75 50];%required for SBR, high res
         
         OFspec.odeSimTime = [];%required for ODE15s, sampleTime must be within this range. set as empty if using SBR
         
-        %%%optimisation parameters, current showing default
+        %%%additional parameters, currently showing default
         OFspec.concBound = [0.01 10000];
-        OFspec.fluxBound = [10 100000];        
+        OFspec.fluxBound = [10 100000];
+        OFspec.natEndo13Cenrich = 0.0107;%endogenous metabolites' natural carbon enrichment
+        OFspec.natSub13Cenrich = 0.0107;%input substrates' natural carbon enrichment
         
         
     case 'runner_2_genFeasible'
+        OFspec.modelObjSaveName = 'OFobj_SBR';
         OFspec.simSaveFolder = 'SIMinstances/';%folder name to load/save all the optimisation instances
         
-        %         OFspec.bumpUpXFeasIniConc = false;%use this to overcome negatives in ODE solver by increasing error tolerance
-        OFspec.bumpUpXFeasIniConc = true;%use this to overcome negatives in ODE solver by increasing initial metabolite concentration
+        OFspec.bumpUpXFeasIniConc = false;%use this to overcome negatives in ODE solver by increasing error tolerance
+        %         OFspec.bumpUpXFeasIniConc = true;%use this to overcome negatives in ODE solver by increasing initial metabolite concentration
         
         
     case 'runner_3a_optimisationSetup'
+        OFspec.modelObjSaveName = 'OFobj_SBR';
         OFspec.opSaveFolder = 'OPinstances/';%folder name to load/save all the optimisation instances
         
         OFspec.metDataFileName = 'metDataIns';%for insulin
@@ -44,41 +49,51 @@ switch scriptCalling
         
         %         OFspec.isForHPC = false;%choose this if for local run
         OFspec.isForHPC = true;%choose this if optimisation is performed on computing clusters
-        OFspec.HPCitt = 10;%set number of parallel runs on computing clusters
+        OFspec.HPCitt = 5;%set number of parallel runs on computing clusters
         
         
-    case 'runner_3c_changeStepSize'
+    case 'runner_3c_changeStepSize' %%only applies to SBR
         OFspec.newSampleSteps = [500 400 200 75 75 50];
         OFspec.opSaveFolder = 'OPinstances/';
         OFspec.fileListToChange  = {
-            'ODEop_20190801_1436882'
-            'SBRop_20190801_1441670'
-            'SBRop_20190801_1441354'
-            'SBRop_20190801_1441944'
+            'SBRop_20190802_1332437'
+            'SBRop_20190802_1249870'
             };
         
         
     case 'runner_3d_changeSBRtoODE'
         OFspec.isODEsolver = true;%now change SBR to ODE
-        %         OFspec.isODEsolver = false;%now change ODE to SBR
-        OFspec.opSaveFolder = 'OPinstances/';%folder name to load/save all the optimisation instances
-        OFspec.fileListToChange  = {
-            'ODEop_20190801_1436882'
-            'SBRop_20190801_1441670'
-            'SBRop_20190801_1441354'
-            'SBRop_20190801_1441944'
-            };
         OFspec.odeSimTime = [0:1:60];%required for ODE15s, sampleTime must be within this range.
         
+%         OFspec.isODEsolver = false;%now change ODE to SBR
+%         OFspec.newSampleSteps = [20 20 20 20 20 20];
+                
+        OFspec.opSaveFolder = 'OPinstances/';%folder name to load/save all the optimisation instances
+        OFspec.fileListToChange  = {
+            'ODEop_20190801_2311205'
+            'SBRop_20190802_1332437'
+            };
         
-    case 'runner_4_visualiseSoln'
-%         OFspec.loadOP = false;
-%         OFspec.loadFolder = 'SIMinstances/';
-%         OFspec.fileName = 'SBRsim_20190801_1559309';
         
-        OFspec.loadOP = true;
+    case 'runner_4a_visualiseSoln'
+        %         OFspec.loadFolder = 'SIMinstances/';
+        %         OFspec.fileName = 'SBRsim_20190801_1559309';
+        
         OFspec.loadFolder = 'OPinstances/';
-        OFspec.fileName = 'SBRop_20190801_1436634';
-        OFspec.simResidualError = false;
+        OFspec.fileName = 'SBRop_20190802_1332337';
+        OFspec.simResidualError = true;
+        
+        
+    case 'runner_4b_visualiseMetData'
+        OFspec.loadFolder = 'OPinstances/';
+        OFspec.fileName = 'SBRop_20190802_1332337';
+            
+            
+    case 'runner_5_MonteCarloSetup'
+        OFspec.loadFolder = 'OPinstances/';
+        OFspec.fileName = 'SBRop_20190802_1332437';%OP instance to clone
+        OFspec.noCase = 3;%number of data corruption
+        OFspec.noRepeatsPerCase = 5;%how many repeated (multistart) optimisation for each corruption
+        OFspec.mcSavFolder = 'MCinstances/';
         
 end

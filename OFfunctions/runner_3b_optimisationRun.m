@@ -5,7 +5,7 @@ disp([opSave.saveFileName ' loaded']);
 opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',40000);
 
 if ~opSave.isODE
-    [Acon, Bcon] = OpenFLUX.buildSBRcon(opSave.AconParas);
+    [Acon, Bcon] = OpenFLUX.buildSBRcon(opSave.AconParas);%build locally because big matrices
 end
 
 runFeas = false;

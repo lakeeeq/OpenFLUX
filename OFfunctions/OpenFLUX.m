@@ -3,6 +3,7 @@ classdef OpenFLUX < handle
     %email: lake-ee.quek@sydney.edu.au
     %OpenFLUX for 13C-DMFA
     properties
+        additionalData %variable to manuallly parse constraint data into leastSQ
         concBound = [0.01 1e4] %global min and max bound of concentrations, max only apply to initial
         concScale %conc min max for individual balanced mets
         dataMet %metabolite tot abs and mass fract with estimated errors
@@ -16,9 +17,12 @@ classdef OpenFLUX < handle
         ionForm %ion formula from txt file
         ionFormFileName %met's name, size & ion formula
         isDynamic = true %set false to output steady-state model
+        isMonteCarlo = false %set true for MC optimisation instances
         isODEsolver = false %for ODE15s solver
         isOptimisation = false %is OF object for optimisation
         labelledSub %specify input substrate name and positional enrichment
+        mcCaseRep
+        mcCloneSource
         metDataFileName %metabolite data file
         metList %full metaboltie list
         metListInt %balanced metabolites
@@ -37,8 +41,6 @@ classdef OpenFLUX < handle
         sampleTime %specify sampling time points
         simulatedMDVs %list simulated EMUs
         stepBTWsample %step size configuration
-        %         odeModel %ODE15s model
-        %         bigEMUmodel %information of emu balances
     end
     properties (Access = private)
         bigEMUmodel %information of emu balances
@@ -49,8 +51,6 @@ classdef OpenFLUX < handle
         EMUmodelOutput %store EMU model from txt
         EMUstate %instantenous EMU
         EMUstateStoreIS_block %input sub state expanded over time
-        isUsingModelDynamic
-        isUsingSolverDE
         jacOut %jacobian for ODE15s
         knotSeq %knot sequence
         knotSeqInt %internal knot sequence
@@ -298,6 +298,11 @@ classdef OpenFLUX < handle
             varOut = eval(['ofOBJ.',varName]);
         end
         
+        function writePrivProp(ofOBJ,varName,inputVar)
+            %shortcut to access private properties from outside
+            eval(['ofOBJ.',varName,'=inputVar;']);
+        end
+        
         function indexOut = findEMUindex(ofOBJ,EMUname,EMUtag)
             if ofOBJ.isODEsolver
                 indexOut = find(OpenFLUX.matchEMU(EMUname,EMUtag,ofOBJ.emuListODE(:,[1 2])));
@@ -309,7 +314,7 @@ classdef OpenFLUX < handle
             end
         end
         
-        function fitFxn = generateFitFxn(ofOBJ,additionalData)
+        function fitFxn = generateFitFxn(ofOBJ)
             opInput = ofOBJ.opInput;
             %%%%unpack%%%%%
             varName = fieldnames(opInput);
@@ -2439,6 +2444,7 @@ opInput.dataMetMID_SEvect = dataMetMID_SEvect;
 opInput.dataMet = ofOBJ.dataMet;
 opInput.stagMap = stagMap;
 opInput.cstag = cstag;
+opInput.additionalData = ofOBJ.additionalData;
 
 if ofOBJ.isODEsolver
     opInput.orderS = ofOBJ.orderS;

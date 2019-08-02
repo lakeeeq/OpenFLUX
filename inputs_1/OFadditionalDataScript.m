@@ -1,3 +1,4 @@
+additionalData = [];%if no additional data, leave as empty
 %%%radiolabel data%%%
 %%%setting up correction matrix
 %this is for FA accumulation data, as acetyl-CoA
@@ -19,3 +20,10 @@ else %for basal
 end
 additionalData{1,3} = OF.findEMUindex('ACCOA_out',[1 1]);
 additionalData{2,3} = OF.findEMUindex('GLYCOGEN_out',[1 1 1 1 1 1]);
+
+
+%corrupt the additional data if it is an MC instance
+if OF.isMonteCarlo
+    additionalData{1,2}(1) =  additionalData{1,2}(1)+additionalData{1,2}(2)*randn(1);
+    additionalData{2,2}(1) =  additionalData{2,2}(1)+additionalData{2,2}(2)*randn(1);
+end

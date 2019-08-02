@@ -46,6 +46,7 @@ simParas = OF.prepSimulation;
 %%%%%%%%%%%
 %specify extra data (radiation)
 OFadditionalDataScript
+OF.additionalData = additionalData;
 
 opSave.lb = simParas.lb;
 opSave.ub = simParas.ub;
@@ -67,7 +68,7 @@ for i = 1:noItt
     OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
     simParas = OF.prepSimulation;
     x0 = rand(size(simParas.lb));
-    fitFxn = OF.generateFitFxn(additionalData);
+    fitFxn = OF.generateFitFxn;
     opSave.datetimeCreated = datetime('now','Format','yyyyMMdd_HHmmSSS');
     opSave.fitFxn = fitFxn;
     opSave.x0 = x0;
@@ -88,7 +89,7 @@ for i = 1:noItt
     end
     save(strcat(OFspec.opSaveFolder, opSave.saveFileName), 'opSave','OF');
     disp(strcat(OFspec.opSaveFolder, opSave.saveFileName));
-    pause(1);
+    pause(0.2);
 end
 if OFspec.isForHPC
     save HPCopFileList fileListHPC
