@@ -6,27 +6,27 @@ A MATLAB-based workflow to perform dynamic flux analysis using time-course 13C s
 MATLAB (2017 or later) with Optimisation Toolbox.
 
 ### Installation
-Download all scripts/functions. Start at *OFstartHere.m*, using MATLAB comment "%" to stage workflow. Modify parameters in *OFspec_SBR.m* or *OFspec_ODE.m* to customise work.
+Download all scripts/functions. Start at **OFstartHere.m**, using MATLAB comment "%" to stage workflow. Modify parameters in **OFspec_SBR.m** or **OFspec_ODE.m** to configure OpenFLUX objects.
 
 ## Running tests
 Adipocyte model and data described in manuscript provided (folder *inputs_1*). Toy ODE model (to be included).
 
 ### Main purpose of each scripts
-*runner_1_modelSetup.m* to setup OpenFLUX object for first time.
+**runner_1_modelSetup.m** to setup OpenFLUX object for first time.
 
-*runner_2_genFeasible.m* to find a feasible solution required to simulate.
+**runner_2_genFeasible.m** to find a feasible solution required to simulate.
 
-*runner_3a_optimisationSetup.m* to set up OpenFLUX objects for multi-start optimisation.
+**runner_3a_optimisationSetup.m** to set up OpenFLUX objects for multi-start optimisation.
 
-*runner_3b_optimisationRun.m* or *runner_3b_optimisationRun_HPC.m* to run optimisation.
+**runner_3b_optimisationRun.m** or **runner_3b_optimisationRun_HPC.m** to run optimisation.
 
-*runner_3c_changeStepSize.m* or *runner_3d_changeSBRtoODE.m* to modiffy OpenFLUX objects.
+**runner_3c_changeStepSize.m** or **runner_3d_changeSBRtoODE.m** to modiffy OpenFLUX objects.
 
-*runner_4a_visualiseSoln.m* to plot feasible solution contained in an OpenFLUX object.
+**runner_4a_visualiseSoln.m** to plot feasible solution contained in an OpenFLUX object.
 
-*runner_4b_visualiseMetData*.m to plot measured isotopologue data.
+**runner_4b_visualiseMetData**.m to plot measured isotopologue data.
 
-*runner_5_MonteCarloSetup.m* to set up OpenFLUX objects with input data corrupted. Use *runner_3b...* to optimise.
+**runner_5_MonteCarloSetup.m** to set up OpenFLUX objects with input *data corrupted. Use *runner_3b...* to optimise.
 
 ## Contact
 Lake-Ee Quek, lake-ee.quek@sydney.edu.au
