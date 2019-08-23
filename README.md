@@ -14,19 +14,19 @@ Adipocyte model and data described in manuscript provided (folder *inputs_1*). T
 ### Main purpose of each scripts
 **runner_1_modelSetup.m** to setup OpenFLUX object for first time.
 
-**runner_2_genFeasible.m** to find a feasible solution required to simulate.
+**runner_2_genFeasible.m** to find a feasible solution required to simulate. No data required.
 
-**runner_3a_optimisationSetup.m** to set up OpenFLUX objects for multi-start optimisation.
+**runner_3a_optimisationSetup.m** to read data and set up OpenFLUX objects for multi-start optimisation.
 
-**runner_3b_optimisationRun.m** or **runner_3b_optimisationRun_HPC.m** to run optimisation.
+**runner_3b_optimisationRun.m** or **runner_3b_optimisationRun_HPC.m** to run optimisation with data as constraints.
 
 **runner_3c_changeStepSize.m** or **runner_3d_changeSBRtoODE.m** to modiffy OpenFLUX objects.
 
-**runner_4a_visualiseSoln.m** to plot feasible solution contained in an OpenFLUX object.
+**runner_4a_visualiseSoln.m** to plot the feasible solution contained in an OpenFLUX object.
 
-**runner_4b_visualiseMetData**.m to plot measured isotopologue data.
+**runner_4b_visualiseMetData.m** to plot measured isotopologue data.
 
-**runner_5_MonteCarloSetup.m** to set up OpenFLUX objects with input *data corrupted. Use *runner_3b...* to optimise.
+**runner_5_MonteCarloSetup.m** to set up OpenFLUX objects with input data corrupted. Then use *runner_3b...* to optimise.
 
 ## Contact
 Lake-Ee Quek, lake-ee.quek@sydney.edu.au

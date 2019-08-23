@@ -38,6 +38,7 @@ classdef OpenFLUX < handle
         orderS = 3 %order of b-spline, default 3
         rxnEQ %reaction equation
         rxnEQfull %reactions in model file
+        version
         sampleTime %specify sampling time points
         simulatedMDVs %list simulated EMUs
         stepBTWsample %step size configuration
@@ -74,7 +75,7 @@ classdef OpenFLUX < handle
         
         function buildModel(ofOBJ)
             %read and generate EMU model
-            [rxnEQ, ofOBJ.excludedMetabolites, ofOBJ.simulatedMDVs, ofOBJ.rxnEQfull] = rxnExtractor(ofOBJ.modelFileName);
+            [rxnEQ, ofOBJ.excludedMetabolites, ofOBJ.simulatedMDVs, ofOBJ.rxnEQfull,folderName,modelText] = rxnExtractor(ofOBJ.modelFileName);
             ofOBJ.noReactions = size(rxnEQ,1);
             ofOBJ.fluxScale = [ofOBJ.fluxBound(1)*ones(ofOBJ.noReactions,1)	ofOBJ.fluxBound(2)*ones(ofOBJ.noReactions,1)];
             ofOBJ.rxnEQ = genRxnEQ(rxnEQ);
@@ -98,8 +99,13 @@ classdef OpenFLUX < handle
                 %print SS model
             else
                 [EMUbalanceBlock, EMUcalculated, EMUsimulated_out, EMUrxnList_collapsed] =...
-                    buildEMUssMat(EMUrxnList(EMUrxnPicked,:), simulatedMDVs, EMUinputSubstrates);
-                printSSmfiles(EMUbalanceBlock, EMUsimulated_out, EMUinputSubstrates);
+                    buildEMUssMat(EMUrxnList(EMUrxnPicked,:), ofOBJ.simulatedMDVs, ofOBJ.EMUinputSubstrates);
+                if strcmp(ofOBJ.version,'2009')
+                    printSSmfiles_2009(EMUbalanceBlock, EMUsimulated_out, ofOBJ.EMUinputSubstrates,...
+                        folderName,modelText,ofOBJ,EMUcalculated);
+                else
+                    printSSmfiles(EMUbalanceBlock, EMUsimulated_out, ofOBJ.EMUinputSubstrates);
+                end
             end
         end
         
@@ -677,13 +683,16 @@ classdef OpenFLUX < handle
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [rxnEQ, excludedMetabolites, simulatedMDVs,rxnEQfull] = rxnExtractor(fileName)
+function [rxnEQ, excludedMetabolites, simulatedMDVs,rxnEQfull,folderName,modelFile] = rxnExtractor(fileName)
 %read model from file
 rxnEQ = '';
 rxnEQfull = '';
 excludedMetabolites = {};
 simulatedMDVs = {};
 fid = fopen(fileName,'r');
+url = fopen(fid);
+folderName = strfind(url,filesep);
+folderName = url(1:folderName(end));
 modelFile = textscan(fid,'%s','delimiter','\n');
 modelFile = modelFile{1};
 fclose(fid);
@@ -1555,6 +1564,365 @@ end
 fclose(fid1);
 fclose(fid2);
 end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function printSSmfiles_2009(EMUbalanceBlock, EMUsimulated_out, EMUinputSubstrates,folderName,modelText,ofOBJ,EMUcalculated)
+% clearvars
+% clc
+% load saveDat
+mkdir(folderName,'model');
+matlabModelFolder = strcat([folderName,filesep,'model',filesep]);
+
+fid = fopen(strcat([folderName 'substrate_EMU.m']),'w');
+fprintf(fid,'%%specify EMU input data here\n');
+for i = 1:size(EMUinputSubstrates,1)
+    EMUname = EMUinputSubstrates{i,1};
+    EMUtag = char(EMUinputSubstrates{i,2}+'0');
+    fprintf(fid,'%s_%s = [];\n',EMUname,EMUtag);
+end
+
+
+fprintf(fid,'%s\n','%%remove or silent the check-point below if substrate_EMU has been specified');
+fprintf(fid,'%s\n','fprintf(''substrate_EMU.m has not been modified\n'')');
+fprintf(fid,'%s\n','fprintf(''press Ctrl C to terminate\n'')');
+fprintf(fid,'%s\n','pause(inf)');
+
+fclose(fid);
+
+
+fid = fopen(strcat([folderName 'x_sim.m']),'w');
+fprintf(fid,'%%simulated measurement vector\n');
+fprintf(fid,'x_calc = [\n');
+for i = 1:size(EMUsimulated_out,1)
+    EMUname = EMUsimulated_out{i,1};
+    EMUtag = char(EMUsimulated_out{i,2}+'0');
+    fprintf(fid,'%s_%s''\n',EMUname,EMUtag);
+end
+fprintf(fid,'];\n');
+fclose(fid);
+
+
+fid1 = fopen(strcat([matlabModelFolder 'EMUModel.m']),'w');
+fid2 = fopen(strcat([matlabModelFolder 'loader_EMUModel.m']),'w');
+EMUsizes = cell2mat(EMUbalanceBlock(:,1));
+EMUsize_unique = unique(EMUsizes);
+for i = 1:numel(EMUsize_unique)
+    hitEMUsize = EMUsizes==EMUsize_unique(i);
+    rc = 1;
+    for j = find(hitEMUsize)'
+        Astring = strcat(['A' num2str(EMUsize_unique(i)) '_' num2str(rc)]);
+        Bstring = strcat(['B' num2str(EMUsize_unique(i)) '_' num2str(rc)]);
+        Ystring = strcat(['Y' num2str(EMUsize_unique(i)) '_' num2str(rc)]);
+        Xstring = strcat(['X' num2str(EMUsize_unique(i)) '_' num2str(rc)]);
+        AinvString = strcat(['A' num2str(EMUsize_unique(i)) '_' num2str(rc) '_inv']);
+        
+        EMUknown = EMUbalanceBlock{j,6};
+        EMUcalc = EMUbalanceBlock{j,3};
+        BblockSize = EMUbalanceBlock{j,7};
+        Bblock = EMUbalanceBlock{j,5};
+        AblockSize = EMUbalanceBlock{j,4};
+        Ablock = EMUbalanceBlock{j,2};
+        
+        %print B matrix
+        fprintf(fid2,'%s = [',Bstring);
+        matBlock = buildBlockContent(BblockSize, Bblock);
+        for m = 1:BblockSize(1)
+            for n = 1:BblockSize(2)
+                if n == 1
+                    if isempty(matBlock{m,n})
+                        fprintf(fid2,'0');
+                    else
+                        fprintf(fid2,'%s',matBlock{m,n});
+                    end
+                else
+                    if isempty(matBlock{m,n})
+                        fprintf(fid2,',0');
+                    else
+                        fprintf(fid2,',%s',matBlock{m,n});
+                    end
+                end
+            end
+            if m<BblockSize(1)
+                fprintf(fid2,'\n');
+            end
+        end
+        fprintf(fid2,'];\n');
+        
+        %print A matrix
+        fprintf(fid2,'%s = [',Astring);
+        matBlock = buildBlockContent(AblockSize, Ablock);
+        for m = 1:AblockSize(1)
+            for n = 1:AblockSize(2)
+                if n == 1
+                    if isempty(matBlock{m,n})
+                        fprintf(fid2,'0');
+                    else
+                        fprintf(fid2,'%s',matBlock{m,n});
+                    end
+                else
+                    if isempty(matBlock{m,n})
+                        fprintf(fid2,',0');
+                    else
+                        fprintf(fid2,',%s',matBlock{m,n});
+                    end
+                end
+            end
+            if m<AblockSize(1)
+                fprintf(fid2,'\n');
+            end
+        end
+        fprintf(fid2,'];\n');
+        
+        %print inversion equation
+        fprintf(fid2,'%s = %s\\%s;\n',AinvString, Astring, Bstring);
+        fprintf(fid2,'\n\n');
+        rc = rc + 1;
+        
+        
+        fprintf(fid1,'%s = [',Ystring);
+        if size(EMUknown,2)<=2
+            for k = 1:size(EMUknown,1)
+                EMUname = EMUknown{k,1};
+                EMUtag = char(EMUknown{k,2}+'0');
+                fprintf(fid1,'%s_%s',EMUname,EMUtag);
+                if k<size(EMUknown,1)
+                    fprintf(fid1,'\n');
+                end
+            end
+        else
+            for k = 1:size(EMUknown,1)
+                if isempty(EMUknown{k,3})
+                    EMUname = EMUknown{k,1};
+                    EMUtag = char(EMUknown{k,2}+'0');
+                    fprintf(fid1,'%s_%s',EMUname,EMUtag);
+                else
+                    EMUname1 = EMUknown{k,1};
+                    EMUtag1 = char(EMUknown{k,2}+'0');
+                    EMUname2 = EMUknown{k,3};
+                    EMUtag2 = char(EMUknown{k,4}+'0');
+                    fprintf(fid1,'cauchy(%s_%s,%s_%s)',EMUname1,EMUtag1,EMUname2,EMUtag2);
+                end
+                if k<size(EMUknown,1)
+                    fprintf(fid1,'\n');
+                end
+            end
+            
+        end
+        fprintf(fid1,'];\n');
+        
+        fprintf(fid1,'%s = %s*%s;\n',Xstring,AinvString,Ystring);
+        
+        for k = 1:size(EMUcalc,1)
+            EMUname = EMUcalc{k,1};
+            EMUtag = char(EMUcalc{k,2}+'0');
+            fprintf(fid1,'%s_%s = %s(%s,:);\n',EMUname,EMUtag,Xstring,num2str(k));
+        end
+        fprintf(fid1,'\n');
+    end
+end
+fclose(fid1);
+fclose(fid2);
+
+hitMea = 0;
+for i = 1:size(modelText,1)
+    if ~isempty(strfind(modelText{i},'##')) && ~isempty(strfind(modelText{i},'measurements'))
+        hitMea = i;
+        break
+    end
+end
+hitErr = 0;
+for i = 1:size(modelText,1)
+    if ~isempty(strfind(modelText{i},'##')) && ~isempty(strfind(modelText{i},'error'))
+        hitErr = i;
+        break
+    end
+end
+
+if hitMea~=0
+    outVect = {};
+    cc = hitMea+1;
+    while 1
+        if cc>size(modelText,1)
+            break
+        end
+        if isempty(modelText{cc})
+            break
+        end
+        if modelText{cc}(1) == '#'
+            outVect{end+1} = strtrim(modelText{cc}(2:end));
+        end
+        cc = cc + 1;
+    end
+    if ~isempty(outVect)
+        fid = fopen(strcat([folderName 'measurements.txt']),'w');
+        fprintf(fid,'%s\n',outVect{:});
+        fclose(fid);
+    end
+end
+
+
+if hitErr ~=0
+    outVect = {};
+    cc = hitErr+1;
+    while 1
+        if cc>size(modelText,1)
+            break
+        end
+        if isempty(modelText{cc})
+            break
+        end
+        if modelText{cc}(1) == '#'
+            outVect{end+1} = strtrim(modelText{cc}(2:end));
+        end
+        cc = cc + 1;
+    end
+    if ~isempty(outVect)
+        fid = fopen(strcat([folderName 'error.txt']),'w');
+        fprintf(fid,'%s\n',outVect{:});
+        fclose(fid);
+    end
+end
+
+
+eIS = unique(EMUinputSubstrates(:,1));
+fid = fopen(strcat([matlabModelFolder,'inputSubstrates.txt']),'w');
+fprintf(fid,'%s\n',eIS{:});
+fclose(fid);
+
+fid = fopen(strcat([matlabModelFolder,'inputSubstratesEMU.txt']),'w');
+for i = 1:size(EMUinputSubstrates,1)
+    tag = strcat([EMUinputSubstrates{i,1},'#']);
+    for j = 1:numel(EMUinputSubstrates{i,2})
+        tag = strcat([tag num2str(EMUinputSubstrates{i,2}(j))]);
+    end
+    fprintf(fid,'%s\n',tag);
+end
+fclose(fid);
+
+fid = fopen(strcat([matlabModelFolder,'simulatedMDVs.txt']),'w');
+for i = 1:size(EMUsimulated_out,1)
+    tag = strcat([EMUsimulated_out{i,1},'#']);
+    for j = 1:numel(EMUsimulated_out{i,2})
+        tag = strcat([tag num2str(EMUsimulated_out{i,2}(j))]);
+    end
+    fprintf(fid,'%s\n',tag);
+end
+fclose(fid);
+
+
+fid = fopen(strcat([matlabModelFolder,'postXSimScript.m']),'w');
+fclose(fid);
+fid = fopen(strcat([matlabModelFolder,'preSolverScript.m']),'w');
+fclose(fid);
+
+fid = fopen(strcat([matlabModelFolder,'natDist.m']),'w');
+fprintf(fid,'%s\n','%%specify natural distribution of C, H, N, O, Si, S');
+fprintf(fid,'%s\n','%%leave variables blank to use default natural distributions');
+fprintf(fid,'%s\n','%%ref: van Winden (2002), Biotechnol. Bioeng.');
+fprintf(fid,'%s\n','%%');
+fprintf(fid,'%s\n','C_dist = [];');
+fprintf(fid,'%s\n','H_dist = [];');
+fprintf(fid,'%s\n','N_dist = [];');
+fprintf(fid,'%s\n','O_dist = [];');
+fprintf(fid,'%s\n','Si_dist = [];');
+fprintf(fid,'%s\n','S_dist = [];');
+fclose(fid);
+
+fid = fopen(strcat([matlabModelFolder,'speciesList.txt']),'w');
+fprintf(fid,'%s\n',ofOBJ.metListInt{:});
+fclose(fid);
+
+fid = fopen(strcat([matlabModelFolder,'excludedMetabolites.txt']),'w');
+metListExt = ofOBJ.metList(ofOBJ.matchExt);
+fprintf(fid,'%s\n',metListExt{:});
+fclose(fid);
+
+fid = fopen(strcat([matlabModelFolder,'stoicMatrix.txt']),'w');
+Sfull = ofOBJ.Sfull;
+for i = 1:size(Sfull,1)
+    fprintf(fid,'%s',num2str(Sfull(i,:)));
+    fprintf(fid,'\n');
+end
+fclose(fid);
+
+fid = fopen(strcat([matlabModelFolder,'calculatedEMUs.txt']),'w');
+for i = 1:size(EMUcalculated,1)
+    tag = strcat([EMUcalculated{i,1},'_']);
+    for j = 1:numel(EMUcalculated{i,2})
+        tag = strcat([tag num2str(EMUcalculated{i,2}(j))]);
+    end
+    fprintf(fid,'%s\n',tag);
+end
+fclose(fid);
+
+
+rxnType = {};
+basisVal = [];
+preferredBasis = [];
+deviationVal = [];
+
+for i = 2:size(modelText,1)
+    if isempty(modelText{i})
+        break
+    end
+    tabPos = regexp(modelText{i},'\t');
+    rxnType{i-1,1} = modelText{i}(tabPos(4)+1:tabPos(5)-1);
+    preferredBasis(i-1,1) = 0;
+    cellIn = modelText{i}(tabPos(5)+1:tabPos(6)-1);
+    if ~isempty(cellIn)
+        preferredBasis(i-1,1) = 1;
+        if ~isempty(str2num(cellIn))
+            basisVal(i-1,1) = str2num(cellIn);
+        end
+        
+    end
+    cellIn = modelText{i}(tabPos(6)+1:tabPos(7)-1);
+    if ~isempty(cellIn)
+        deviationVal(i-1,1) = str2num(cellIn);
+    end    
+end
+
+fid = fopen(strcat([matlabModelFolder,'rxnDef.m']),'w');
+fprintf(fid,'%s\n','%%specify number of synthesis reactions');
+fprintf(fid,'n_aadrain = %s;\n',num2str(sum(strcmp(rxnType,'S'))));
+fprintf(fid,'synRxn_rat = [%s]'';\n',num2str(find(strcmp(rxnType,'SF')')));
+fprintf(fid,'%s\n','%%specify rxnNo. that is meant to be reversible');
+fprintf(fid,'rev_rxnList = [%s]'';\n',num2str(find(strcmp(rxnType,'R')')));
+fprintf(fid,'%s\n','%%preference of basis reaction in order (rev -> fow -> biomass)');
+fprintf(fid,'swap = [%s]'';\n',num2str([find(strcmp(rxnType,'R'))' find(strcmp(rxnType,'F') & preferredBasis==1)'...
+    find(strcmp(rxnType,'B') & preferredBasis==1)']));
+fprintf(fid,'%s\n','%%least preference of basis reaction');
+fprintf(fid,'put_last = [%s]'';\n',num2str(find(strcmp(rxnType,'FR')')));
+fprintf(fid,'%s\n','%%specify reactions that can have negative flux');
+fprintf(fid,'rxnNeg = [%s]'';\n',num2str(find(strcmp(rxnType,'BR')')));
+fprintf(fid,'%s\n','%%specity reaction''s basis value');
+fprintf(fid,'basis = [\n');
+for i = 1:numel(basisVal)
+    if basisVal(i) ~=0
+        fprintf(fid,'%s %s %s\n',num2str(i),num2str(basisVal(i)),num2str(deviationVal(i)));
+    end
+end
+fprintf(fid,'];\n');
+fclose(fid);
+
+% n_aadrain = 3;
+% synRxn_rat = [];
+% rev_rxnList = [8];
+% swap = [8; 1; 16; 17; 18];
+% put_last = [7];
+% rxnNeg = [];
+% basis = [
+%   1 1.0 0.0
+%   16 0.2 0.01
+%   17 0.23 0.01
+%   18 0.15 0.01
+% ];
+
+modelText;
+end
+
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3060,6 +3428,37 @@ jacOut.Jmat = zeros(yLength,yLength);
 jacOut.cc2 = zeros(noCauchyPairs,1);
 
 disp('jacobian generated');
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function matBlock = buildBlockContent(EMUbalanceSize, EMUbalanceStoic)
+
+matBlock = cell(EMUbalanceSize);
+
+for k = 1:size(EMUbalanceStoic,1)
+    cellString = '';
+    stoicCell = EMUbalanceStoic{k,2};
+    vCell = EMUbalanceStoic{k,3};
+    for m = 1:numel(stoicCell)
+        if stoicCell(m) == 1
+            compString = strcat(['v(' num2str(vCell(m)) ')']);
+        elseif stoicCell(m) == -1
+            compString = strcat(['-v(' num2str(vCell(m)) ')']);
+        else
+            compString = strcat([num2str(stoicCell(m)) '*v(' num2str(vCell(m)) ')']);
+        end
+        
+        if isempty(cellString)
+            cellString = compString;
+        elseif stoicCell(m) > 0
+            cellString = strcat([cellString '+' compString]);
+        else
+            cellString = strcat([cellString compString]);
+        end
+    end
+    matBlock{EMUbalanceStoic{k,1}(1), EMUbalanceStoic{k,1}(2)} = cellString;
+end
 end
 
 

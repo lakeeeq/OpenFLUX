@@ -1,0 +1,101 @@
+RxnID	rxnEq	rxnCTrans	rates	rxnType	basis	deviation	
+R1	PYR_EX = PYR	abc = abc		F	1		
+R2	GLU_EX = AKG	abcde = abcde		F			
+R3	PYR = ACCOA + CO2 + NADH	abc = bc + a + X		F			
+R4	ACCOA + OAA = ICI	ab + cdef = fedbac		F			
+R5	ICI = AKG + CO2 + NADH	abcdef = abcde + f + X		F			
+R6	AKG = 0.5 SUC + 0.5 SUC + CO2 + NADH + ATP	abcde = 0.5 abcd + 0.5 dcba + e + X + X		F			
+R7	SUC = OAA + FADH2 + NADH	abcd = abcd + X + X		FR			
+R8	OAA + FADH2 + NADH = 0.5 SUC + 0.5 SUC	abcd + X + X = 0.5 abcd + 0.5 dcba		R	X		
+R9	OAA = PYR + CO2	abcd = abc + d		F			
+R10	PYR + CO2 + ATP = OAA	abc + d + X = abcd		F			
+R11	2 NADH + O2 = 4 ATP			B			
+R12	2 FADH2 + O2 = 2 ATP			B			
+R13	O2_EX = O2			B			
+R14	CO2 = CO2_EX	a = a		F			
+R15	ATP = ATPM			B			
+R16	PYR = PYR_B			B	0.2	0.01	
+R17	AKG = AKG_B			B	0.23	0.01	
+R18	OAA = OAA_B			B	0.15	0.01	
+R19	PYR + PYR = VALX + CO2X	abc + def = abefc + d		S			
+R20	OAA = ASPX	abcd = abcd		S			
+R21	OAA + PYR = LYSX + CO2X	abcd + efg = abcdgf + e		S			
+							
+##	excludedMetabolites						
+#	PYR_EX						
+#	GLU_EX						
+#	CO2_EX						
+#	O2_EX						
+#	PYR_B						
+#	AKG_B						
+#	OAA_B						
+#	ATPM						
+							
+##	simulatedMDVs						
+#	VALX#11111						
+#	LYSX#111111						
+#	ASPX#1111						
+							
+##	inputSubstrates						
+#	PYR_EX						
+#	GLU_EX						
+							
+##	measurements						
+#	0.02983						
+#	0.24378						
+#	0.05892						
+#	0.43985						
+#	0.02923						
+#	0.19839						
+#	0.03443						
+#	0.18539						
+#	0.16768						
+#	0.24989						
+#	0.20736						
+#	0.07642						
+#	0.07883						
+#	0.06608						
+#	0.35319						
+#	0.24974						
+#	0.15901						
+#	0.17197						
+							
+##	error						
+#	0.00030						
+#	0.00244						
+#	0.00059						
+#	0.00440						
+#	0.00029						
+#	0.00198						
+#	0.00034						
+#	0.00185						
+#	0.00168						
+#	0.00250						
+#	0.00207						
+#	0.00076						
+#	0.00079						
+#	0.00066						
+#	0.00353						
+#	0.00250						
+#	0.00159						
+#	0.00172						
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
+							
