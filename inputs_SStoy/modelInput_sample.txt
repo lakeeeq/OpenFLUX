@@ -1,0 +1,42 @@
+RxnID	rxnEq	rxnCTrans	rates	rxnType	LB	UB
+R1	PYR_EX = PYR	abc = abc		F	1	1
+R2	GLU_EX = AKG	abcde = abcde		F		
+R3	PYR = ACCOA + CO2 + NADH	abc = bc + a + X		F		
+R4	ACCOA + OAA = ICI	ab + cdef = fedbac		F		
+R5	ICI = AKG + CO2 + NADH	abcdef = abcde + f + X		F		
+R6	AKG = 0.5 SUC + 0.5 SUC + CO2 + NADH + ATP	abcde = 0.5 abcd + 0.5 dcba + e + X + X		F		
+R7	SUC = OAA + FADH2 + NADH	abcd = abcd + X + X		FR		
+R8	OAA + FADH2 + NADH = 0.5 SUC + 0.5 SUC	abcd + X + X = 0.5 abcd + 0.5 dcba		R	X	X
+R9	OAA = PYR + CO2	abcd = abc + d		F		
+R10	PYR + CO2 + ATP = OAA	abc + d + X = abcd		F		
+R11	2 NADH + O2 = 4 ATP			B		
+R12	2 FADH2 + O2 = 2 ATP			B		
+R13	O2_EX = O2			B		
+R14	CO2 = CO2_EX	a = a		F		
+R15	ATP = ATPM			B		
+R16	PYR = PYR_B			B	0.19	0.21
+R17	AKG = AKG_B			B	0.22	0.23
+R18	OAA = OAA_B			B	0.14	0.16
+R19	PYR + PYR = VALX + CO2X	abc + def = abefc + d		S		
+R20	OAA = ASPX	abcd = abcd		S		
+R21	OAA + PYR = LYSX + CO2X	abcd + efg = abcdgf + e		S		
+						
+##	excludedMetabolites					
+#	PYR_EX					
+#	GLU_EX					
+#	CO2_EX					
+#	O2_EX					
+#	PYR_B					
+#	AKG_B					
+#	OAA_B					
+#	ATPM					
+						
+##	simulatedMDVs					
+#	VALX#11111					
+#	LYSX#111111					
+#	ASPX#1111					
+#	ASPX#1100					
+						
+##	inputSubstrates					
+#	PYR_EX					
+#	GLU_EX					

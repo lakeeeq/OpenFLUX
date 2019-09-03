@@ -12,12 +12,11 @@ simParas = OF.prepSimulation;
 
 opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',40000);
 
-x0 = rand(size(simParas.lb));
+x0 = rand(size(simParas.lb)).*(simParas.ub-simParas.lb);
 xGuess = x0;
 
 %%%find a feasible solution
 if OF.isODEsolver%%ODE-mode
-    simParas.conFxn(x0);
     while 1
         xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,[],[],[],[],simParas.lb,simParas.ub,simParas.conFxn,opOptions);
         if all(simParas.conFxn(xFeas)<=0)
@@ -28,12 +27,20 @@ if OF.isODEsolver%%ODE-mode
     end
     if OFspec.bumpUpXFeasIniConc
         xFeas = OF.simSolnODE_stepConc(xFeas);
-    end
-    
-else%%%SBR-mode
+    end    
+elseif OF.isDynamic%%%SBR-mode
     while 1
         xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,simParas.Acon,simParas.Bcon,[],[],simParas.lb,simParas.ub,[],opOptions);
         if all(simParas.Acon*xFeas<=simParas.Bcon)
+            break
+        else
+            xGuess = xFeas;
+        end
+    end
+else%%SS mode
+    while 1
+        xFeas = fmincon(@(x)minDistX0(x,x0),xGuess,[],[],[],[],simParas.lb,simParas.ub,simParas.conFxn,opOptions);
+        if all(simParas.conFxn(xFeas)<=0)
             break
         else
             xGuess = xFeas;
@@ -46,10 +53,15 @@ simSave.xFeas = xFeas;
 simSave.datetimeCreated = datetime('now','Format','yyyyMMdd_HHmmSSS');
 if OF.isODEsolver%%ODE-mode
     simSave.saveFileName = strcat(['ODEsim_' char(simSave.datetimeCreated) '.mat']);
-else
+elseif OF.isDynamic%%%SBR-mode
     simSave.saveFileName = strcat(['SBRsim_' char(simSave.datetimeCreated) '.mat']);
+else %%%SS-mode
+    simSave.saveFileName = strcat(['SSsim_' char(simSave.datetimeCreated) '.mat']);
 end
 save(strcat(OFspec.simSaveFolder, simSave.saveFileName), 'simSave','OF');
 disp(strcat(OFspec.simSaveFolder, simSave.saveFileName));
 
-% [simEMU,simConc,simFlux,simTime] = OF.simSoln(xFeas);
+if OFspec.simulateSoln 
+    simOutput = OF.simSoln(xFeas);
+    disp('simOutput generated');
+end

@@ -51,25 +51,36 @@ for ixx = 1:OFspec.noCase
     %%%%%%
     
     for j = 1:OFspec.noRepeatsPerCase
-        OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
+        if OF.isDynamic
+            OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
+        end
         simParas = OF.prepSimulation;
         x0 = rand(size(simParas.lb));
         fitFxn = OF.generateFitFxn;
         opSave.datetimeCreated = datetime('now','Format','yyyyMMdd_HHmmSSS');
         opSave.fitFxn = fitFxn;
         opSave.x0 = x0;
-        opSave.xIntKnot = OF.intKntPos;
+        if OF.isDynamic
+            opSave.xIntKnot = OF.intKntPos;
+        end
         OF.mcCaseRep = [ixx j];
         
         if OF.isODEsolver
             opSave.isODE = true;
+            opSave.isDynamic = true;
             opSave.conFxn = simParas.conFxn;
             opSave.saveFileName = strcat(['ODEmc_' char(opSave.datetimeCreated) '.mat']);
-        else
+        elseif OF.isDynamic
             opSave.isODE = false;
+            opSave.isDynamic = true;
             opSave.stepBTWsample = OF.stepBTWsample;
             opSave.AconParas = simParas.AconParas;
             opSave.saveFileName = strcat(['SBRmc_' char(opSave.datetimeCreated) '.mat']);
+        else
+            opSave.isODE = false;
+            opSave.isDynamic = false;
+            opSave.conFxn = simParas.conFxn;
+            opSave.saveFileName = strcat(['SSmc_' char(opSave.datetimeCreated) '.mat']);
         end
         
         fileListHPC{cc,1} = opSave.saveFileName;

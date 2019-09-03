@@ -1,0 +1,25 @@
+RxnID	rxnEq	rxnCTrans	rates	rxnType	basis	deviation
+R01	PYR_in = PYR	abc = abc		F		
+R02	PYR = ACCOA + CO2	abc = bc + a		F		
+R03	ACCOA + OAA = CIT	ab + cdef = fedbac		F		
+R04	CIT = AKG + CO2	abcdef = abcde + f		F		
+R05	AKG = OAA + CO2	abcde = bcde + a		F		
+R06	CO2 = CO2_out	a = a		F		
+R07	PYR + CO2 = OAA	abc + d = abcd		F		
+R08	AKG = AKG_out	abcde = abcde		F		
+						
+##	excludedMetabolites					
+#	PYR_in					
+#	CO2_out					
+#	AKG_out					
+						
+##	simulatedMDVs					
+#	PYR#111					
+#	ACCOA#11					
+#	OAA#1111					
+#	CIT#111111					
+#	AKG#11111					
+#	CO2#1					
+						
+##	inputSubstrates					
+#	PYR_in					

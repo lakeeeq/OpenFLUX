@@ -10,19 +10,30 @@ OF = OpenFLUX;
 %%%%initial configuration%%%%
 OF.modelCondition = OFspec.modelCondition;
 OF.modelFileName = OFspec.modelFileName;
-OF.ionFormFileName = OFspec.ionFormFileName;
+% OF.ionFormFileName = OFspec.ionFormFileName;
 OF.natEndo13Cenrich  = OFspec.natEndo13Cenrich;
 OF.natSub13Cenrich = OFspec.natSub13Cenrich;
-OF.concBound = OFspec.concBound;
 OF.fluxBound = OFspec.fluxBound;
+OF.isDynamic = OFspec.isDynamic;
+if OF.isDynamic
+    OF.concBound = OFspec.concBound;
+else
+    OF.par = OFspec.par;
+    OF.ufISA = OFspec.unlabelledFraction;
+end
         
 OF.buildModel;
-
-OF.intKntPos = OFspec.intKntPos;
-OF.orderS = OFspec.orderS;
 OF.labelledSub = OFspec.labelledSub;
-OF.sampleTime = OFspec.sampleTime;
-OF.stepBTWsample = OFspec.stepBTWsample;
-OF.odeSimTime = OFspec.odeSimTime;
-OF.isODEsolver = OFspec.isODEsolver;
+
+if OF.isDynamic
+    OF.intKntPos = OFspec.intKntPos;
+    OF.orderS = OFspec.orderS;
+    OF.sampleTime = OFspec.sampleTime;
+    OF.odeSimTime = OFspec.odeSimTime;
+    OF.isODEsolver = OFspec.isODEsolver;
+    if ~OF.isODEsolver
+        OF.stepBTWsample = OFspec.stepBTWsample;
+    end
+end
+
 save(OFspec.modelObjSaveName,'OF');

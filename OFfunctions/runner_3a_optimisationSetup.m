@@ -39,8 +39,11 @@ end
 OFadditionalConstraintsScript
 
 %%%%setup optimisation%%%%
-OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
-% OF.intKntPos = aa.xKnot;%%%reuse solution
+if OF.isDynamic
+    OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
+    % OF.intKntPos = aa.xKnot;%%%reuse solution
+end
+
 simParas = OF.prepSimulation;
 
 %%%%%%%%%%%
@@ -55,7 +58,7 @@ opSave.solnIndex = 0;
 opSave.xFitSeries = struct();%datetime saved, xStart, tElapse, xFinish, fval, exitflag
 opSave.metDataFileName = OF.metDataFileName;
 opSave.bumpUpXFeasIniConc = OFspec.bumpUpXFeasIniConc;
-    
+
 %%%%run this to generate many optimisation instances for HPC
 if OFspec.isForHPC
     fileListHPC = {};
@@ -65,7 +68,9 @@ else
     noItt = 1;
 end
 for i = 1:noItt
-    OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
+    if OF.isDynamic
+        OF.intKntPos = sort(rand(size(OF.intKntPos)));%%%guess rand knot
+    end
     simParas = OF.prepSimulation;
     x0 = rand(size(simParas.lb));
     fitFxn = OF.generateFitFxn;
@@ -76,13 +81,20 @@ for i = 1:noItt
     
     if OF.isODEsolver
         opSave.isODE = true;
+        opSave.isDynamic = true;
         opSave.conFxn = simParas.conFxn;
         opSave.saveFileName = strcat(['ODEop_' char(opSave.datetimeCreated) '.mat']);
-    else
+    elseif OF.isDynamic
         opSave.isODE = false;
+        opSave.isDynamic = true;
         opSave.stepBTWsample = OF.stepBTWsample;
         opSave.AconParas = simParas.AconParas;
         opSave.saveFileName = strcat(['SBRop_' char(opSave.datetimeCreated) '.mat']);
+    else
+        opSave.isODE = false;
+        opSave.isDynamic = false;
+        opSave.conFxn = simParas.conFxn;
+        opSave.saveFileName = strcat(['SSop_' char(opSave.datetimeCreated) '.mat']);
     end
     if OFspec.isForHPC
         fileListHPC{i,1} = opSave.saveFileName;
