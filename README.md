@@ -1,10 +1,10 @@
 # 13C-DMFA
 A MATLAB-based workflow to perform dynamic flux analysis using time-course 13C stable isotope data, as well as analysis in the steady-state regime. It provides a text-based interface to control the underlying modelling architecture. The workflow is scripted and executed in stages (see Figure), but are open for moodifications (e.g., **leastSQ_.m**). Each OpenFLUX object is self-contained (data, model and parameters are uploaded), and is portable (not dependent on the original inputs).
-
-
+<br />
+<br />
 ![alt text](https://github.com/lakeeeq/OpenFLUX/blob/master/OpenFLUX%20workflow.png)
-
-
+<br />
+<br />
 ## Getting Started
 ### Prerequisite
 MATLAB (2017 or later) with Optimisation Toolbox.
