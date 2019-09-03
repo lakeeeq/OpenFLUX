@@ -1,15 +1,20 @@
 # 13C-DMFA
-A MATLAB-based workflow to perform dynamic flux analysis using time-course 13C stable isotope data. It provides a text-based interface to control the underlying modelling architecture. The workflow is scripted and executed in stages (see Figure), but are open for moodifications. Each OpenFLUX object is self-contained (data, model and parameters are uploaded), and is portable (not dependent on the original inputs).
+A MATLAB-based workflow to perform dynamic flux analysis using time-course 13C stable isotope data, as well as analysis in the steady-state regime. It provides a text-based interface to control the underlying modelling architecture. The workflow is scripted and executed in stages (see Figure), but are open for moodifications (e.g., **leastSQ_.m**). Each OpenFLUX object is self-contained (data, model and parameters are uploaded), and is portable (not dependent on the original inputs).
 
 ## Getting Started
 ### Prerequisite
 MATLAB (2017 or later) with Optimisation Toolbox.
 
 ### Installation
-Download all scripts/functions. Start at **OFstartHere.m**, using MATLAB comment "%" to stage workflow. Modify parameters in **OFspec_SBR.m** or **OFspec_ODE.m** to configure OpenFLUX objects.
+Download all scripts/functions. Start at **OFstartHere.m**, using MATLAB comment "%" to stage workflow. Modify parameters in **OFspec_SBR.m** or **OFspec_ODE.m** or **OFspec_SS.m** to configure OpenFLUX objects.
 
 ## Running tests
-Adipocyte model and data described in manuscript provided (folder *inputs_1*). Toy ODE model (to be included).
+1. Adipocyte model and data described in manuscript provided (folder *inputs_adipocytes*).
+2. Toy dynamic model.
+3. Toy steady-state model.
+4. Toy steady-state model for OpenFLUX version 2009 workflow (use **OFstartHere_2009.m**).
+
+
 
 ### Main purpose of each scripts
 **runner_1_modelSetup.m** to setup OpenFLUX object for first time.
