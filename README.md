@@ -14,7 +14,7 @@ Download all scripts/functions. Start at **OFstartHere.m**, using MATLAB comment
 3. Toy steady-state model.
 4. Toy steady-state model for OpenFLUX version 2009 workflow (use **OFstartHere_2009.m**).
 
-
+![alt text](https://github.com/lakeeeq/OpenFLUX/blob/master/OpenFLUX%20workflow.png)
 
 ### Main purpose of each scripts
 **runner_1_modelSetup.m** to setup OpenFLUX object for first time.
