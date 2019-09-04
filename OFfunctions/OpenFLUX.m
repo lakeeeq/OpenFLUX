@@ -460,7 +460,7 @@ classdef OpenFLUX < handle
                 mid_outParsed{i,6} = ofOBJ.rxnEQ(rxnOut);
                 
                 if any(hitData)
-                    mid_outParsed{i,7} = ofOBJ.dataMet{hitData,2};
+                    mid_outParsed{i,7} = ofOBJ.dataMet{hitData,2};%using original data (isotopologue)
                     mid_outParsed{i,8} = ofOBJ.dataMet{hitData,3};
                 end
             end

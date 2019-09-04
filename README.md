@@ -33,7 +33,7 @@ Download all scripts/functions. Start at **OFstartHere.m**, using MATLAB comment
 
 **runner_4b_visualiseMetData.m** to plot measured isotopologue data.
 
-**runner_5_MonteCarloSetup.m** to set up OpenFLUX objects with input data corrupted. Then use *runner_3b...* to optimise.
+**runner_5a_MonteCarloSetup.m** to set up OpenFLUX objects with input data corrupted. Then use *runner_3b...* to optimise.
 
 ## Contact
 Lake-Ee Quek, lake-ee.quek@sydney.edu.au

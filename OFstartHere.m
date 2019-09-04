@@ -9,20 +9,21 @@ addpath OFfunctions %can be added to MATLAB startup
 
 %% object specification
 % OFspecFileName = 'inputs_DYNAMICtoy/OFspec_ODEdynaToy';
-% OFspecFileName = 'inputs_DYNAMICtoy/OFspec_SBRdynaToy';
+OFspecFileName = 'inputs_DYNAMICtoy/OFspec_SBRdynaToy';
 % OFspecFileName = 'inputs_adipocytes/OFspec_ODEadipocyte';
 % OFspecFileName = 'inputs_adipocytes/OFspec_SBRadipocyte';
-OFspecFileName = 'inputs_SStoy/OFspec_SStoy';
+% OFspecFileName = 'inputs_SStoy/OFspec_SStoy';
 
 %% task to run
-taskToDO = 'runner_1';%model build and setup (for SS too)
+% taskToDO = 'runner_1';%model build and setup (for SS too)
 % taskToDO = 'runner_2';%generate feasible solutions and simulate (for SS too)
 % taskToDO = 'runner_3a';%optimisation setup (for SS too)
 % taskToDO = 'runner_3c';%change SBR step size
 % taskToDO = 'runner_3d';%change SBR to ODE, and vice-versa
 % taskToDO = 'runner_4a';%visualise flux solution
 % taskToDO = 'runner_4b';%visualise metabolite data
-% taskToDO = 'runner_5';%set up monte carlo runs(MC instances, for SS too)
+% taskToDO = 'runner_5a';%set up monte carlo runs (MC instances, for SS too)
+taskToDO = 'runner_5b';%compile and visualise optimisation batch
 
 %{
 taskToDO = 'runner_3b';%run optimisation (single instance, for SS too)
@@ -62,8 +63,10 @@ switch taskToDO
         runner_4a_visualiseSoln
     case 'runner_4b'
         runner_4b_visualiseMetData
-    case 'runner_5'
-        runner_5_MonteCarloSetup
+    case 'runner_5a'
+        runner_5a_MonteCarloSetup
+    case 'runner_5b'
+        runner_5b_compileVisualiseOps
 end
 return
 

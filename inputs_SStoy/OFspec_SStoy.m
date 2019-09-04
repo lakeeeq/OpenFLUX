@@ -88,11 +88,19 @@ switch scriptCalling
         
         
 %%        
-    case 'runner_5_MonteCarloSetup'
+    case 'runner_5a_MonteCarloSetup'
         OFspec.loadFolder = 'OPinstances/';
         OFspec.fileName = 'SSop_20190830_2302174';%OP instance to clone
         OFspec.noCase = 3;%number of data corruption
         OFspec.noRepeatsPerCase = 5;%how many repeated (multistart) optimisation for each corruption
         OFspec.mcSavFolder = 'MCinstances/';
+        
+        
+%%  
+    case 'runner_5b_compileVisualiseOps'
+        OFspec.loadFolder = 'MCinstances/';
+        OFspec.opReferenceFile = 'SBRmc_20190903_1324165';
+        OFspec.compileFileName = 'compiledOpResults_1';
+        OFspec.reloadCompiledResults = false;
 %%        
 end
