@@ -15,7 +15,7 @@ OFspecFileName = 'inputs_DYNAMICtoy/OFspec_SBRdynaToy';
 % OFspecFileName = 'inputs_SStoy/OFspec_SStoy';
 
 %% task to run
-% taskToDO = 'runner_1';%model build and setup (for SS too)
+taskToDO = 'runner_1';%model build and setup (for SS too)
 % taskToDO = 'runner_2';%generate feasible solutions and simulate (for SS too)
 % taskToDO = 'runner_3a';%optimisation setup (for SS too)
 % taskToDO = 'runner_3c';%change SBR step size
@@ -23,7 +23,7 @@ OFspecFileName = 'inputs_DYNAMICtoy/OFspec_SBRdynaToy';
 % taskToDO = 'runner_4a';%visualise flux solution
 % taskToDO = 'runner_4b';%visualise metabolite data
 % taskToDO = 'runner_5a';%set up monte carlo runs (MC instances, for SS too)
-taskToDO = 'runner_5b';%compile and visualise optimisation batch
+% taskToDO = 'runner_5b';%compile and visualise optimisation batch
 
 %{
 taskToDO = 'runner_3b';%run optimisation (single instance, for SS too)
