@@ -41,4 +41,4 @@ Download all scripts/functions. Start at **OFstartHere.m**, using MATLAB comment
 Lake-Ee Quek, lake-ee.quek@sydney.edu.au
 
 ## Reference
-Lake-Ee Quek, James R. Krycer, Satoshi Ohno, Katsuyuki  Yugi, Daniel J. Fazakerley, Richard Scalzo, Sarah D. Elkington, Ziwei Dai, Akiyoshi Hirayama, Satsuki Ikeda, Futaba Shoji, Kumi Suzuki, Jason W. Locasale, Tomoyoshi Soga, David E. James, Shinya Kuroda. *Dynamic 13C flux analysis captures the reorganisation of adipocyte glucose metabolism in response to insulin.* Submitted.
+Lake-Ee Quek, James R. Krycer, Satoshi Ohno, Katsuyuki  Yugi, Daniel J. Fazakerley, Richard Scalzo, Sarah D. Elkington, Ziwei Dai, Akiyoshi Hirayama, Satsuki Ikeda, Futaba Shoji, Kumi Suzuki, Jason W. Locasale, Tomoyoshi Soga, David E. James, Shinya Kuroda. *Dynamic 13C flux analysis captures the reorganisation of adipocyte glucose metabolism in response to insulin*. iScience 2020.
