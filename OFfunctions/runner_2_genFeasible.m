@@ -7,6 +7,11 @@
 OFspec = OpenFLUX.OFobjSpecification(mfilename,OFspecFileName);
 
 load(OFspec.modelObjSaveName);
+
+if ~isfolder(OFspec.simSaveFolder)
+    mkdir(OFspec.simSaveFolder);
+end
+
 OF.genLabelledSubstrate;
 simParas = OF.prepSimulation;
 
@@ -48,6 +53,7 @@ else%%SS mode
     end
 end
 
+
 simSave.x0 = x0;
 simSave.xFeas = xFeas;
 simSave.datetimeCreated = datetime('now','Format','yyyyMMdd_HHmmSSS');
@@ -63,5 +69,8 @@ disp(strcat(OFspec.simSaveFolder, simSave.saveFileName));
 
 if OFspec.simulateSoln 
     simOutput = OF.simSoln(xFeas);
+    save(strcat(OFspec.simSaveFolder, simSave.saveFileName), 'simSave','OF','simOutput');
     disp('simOutput generated');
 end
+
+clearvars -except OF OFspec simOutput simSave

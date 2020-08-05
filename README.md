@@ -35,7 +35,7 @@ Download all scripts/functions. Start at **OFstartHere.m**, using MATLAB comment
 
 **runner_5a_MonteCarloSetup.m** to set up OpenFLUX objects with input data corrupted. Then use *runner_3b...* to optimise.
 
-**runner_5b_compileVisualiseOps.m** to compile optimised OpenFLUX objects and visualise results.
+**runner_6_compileVisualiseOps.m** to compile optimised OpenFLUX objects and visualise results.
 
 ## Contact
 Lake-Ee Quek, lake-ee.quek@sydney.edu.au

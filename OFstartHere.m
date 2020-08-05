@@ -1,5 +1,6 @@
 clearvars
 clc
+cd(fileparts(which(mfilename)));
 addpath OFfunctions %can be added to MATLAB startup
 % rng('shuffle');%run this once upon starting MATLAB
 
@@ -23,17 +24,19 @@ taskToDO = 'runner_1';%model build and setup (for SS too)
 % taskToDO = 'runner_4a';%visualise flux solution
 % taskToDO = 'runner_4b';%visualise metabolite data
 % taskToDO = 'runner_5a';%set up monte carlo runs (MC instances, for SS too)
-% taskToDO = 'runner_5b';%compile and visualise optimisation batch
+% taskToDO = 'runner_6';%compile and visualise optimisation batch
 
 %{
 taskToDO = 'runner_3b';%run optimisation (single instance, for SS too)
-OFspec.saveFolder = 'OPinstances/';
-OFspec.OPinstance = 'ODEop_20190903_1321347';
+addpath inputs_DYNAMICtoy %not needed if leastSQ_ script is visible
+OFspec.saveFolder = 'MCinstances/';
+OFspec.OPinstance = 'SBRmc_20200805_1603151';
 %}
 
 %{
 taskToDO = 'runner_3b_hpc';%run optimisations on HPC (for testing, for MC, for SS too)
-OPspec.noItt = 50;
+addpath inputs_DYNAMICtoy %not needed if leastSQ_ script is visible
+OPspec.noItt = 5;
 OFspec.saveFolder = 'MCinstances/';
 OFspec.fileListVarSaved = 'HPCmcFileList_1';
 %}
@@ -65,8 +68,8 @@ switch taskToDO
         runner_4b_visualiseMetData
     case 'runner_5a'
         runner_5a_MonteCarloSetup
-    case 'runner_5b'
-        runner_5b_compileVisualiseOps
+    case 'runner_6'
+        runner_6_compileVisualiseOps
 end
 return
 

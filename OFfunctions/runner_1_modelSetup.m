@@ -10,7 +10,6 @@ OF = OpenFLUX;
 %%%%initial configuration%%%%
 OF.modelCondition = OFspec.modelCondition;
 OF.modelFileName = OFspec.modelFileName;
-% OF.ionFormFileName = OFspec.ionFormFileName;
 OF.natEndo13Cenrich  = OFspec.natEndo13Cenrich;
 OF.natSub13Cenrich = OFspec.natSub13Cenrich;
 OF.fluxBound = OFspec.fluxBound;
@@ -36,4 +35,4 @@ if OF.isDynamic
     end
 end
 
-save(OFspec.modelObjSaveName,'OF');
+save(strcat(OFspec.inputDirectory,filesep,OFspec.modelObjSaveName),'OF');

@@ -4,6 +4,10 @@
 OFspec = OpenFLUX.OFobjSpecification(mfilename,OFspecFileName);
 load(strcat([OFspec.loadFolder, OFspec.fileName]));
 
+if ~isfolder(OFspec.mcSavFolder)
+    mkdir(OFspec.mcSavFolder);
+end
+
 OF.isMonteCarlo = true;
 OF.mcCloneSource = OFspec.fileName;
 

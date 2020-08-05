@@ -108,10 +108,11 @@ switch scriptCalling
         
         
 %%  
-    case 'runner_5b_compileVisualiseOps'
+    case 'runner_6_compileVisualiseOps'
         OFspec.loadFolder = 'MCinstances/';
         OFspec.opReferenceFile = 'SBRmc_20190903_1324165';
         OFspec.compileFileName = 'compiledOpResults_1';
         OFspec.reloadCompiledResults = false;
+        OFspec.mcBestSoln = false;
 %%        
 end

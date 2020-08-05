@@ -73,3 +73,4 @@ metConcProfile_SIMvect = metConcProfile_SIM(:);
 fConc_diff = (dataMetConc_EXPvect-metConcProfile_SIMvect)./dataMetSE_EXPvect;
 fMID_diff = (dataMetMID_EXPvect-dataMetMID_SIMvect)./dataMetMID_SEvect;
 f = fConc_diff'*fConc_diff + fMID_diff'*fMID_diff;
+rad_diff=[];

@@ -1,4 +1,7 @@
 addpath(pwd);
+pwdString = pwd;
+hitFS = regexp(pwdString,filesep);
+OFspec.inputDirectory = pwdString((hitFS(end)+1):end);
 %%
 switch scriptCalling
     case 'runner_1_modelSetup'
@@ -16,7 +19,6 @@ switch scriptCalling
         OFspec.sampleTime = [1 5 10 15 20 25 30 40 50 60];%indicate sampling time points (still required for simulations)
         
         OFspec.stepBTWsample = [20 20 20 20 20 20 20 20 20 20];%required for SBR, low res
-        % OFspec.stepBTWsample = [500 400 200 75 75 50];%required for SBR, high res
         
         OFspec.odeSimTime = [];%required for ODE15s, sampleTime must be within this range. set as empty if using SBR
         
@@ -42,14 +44,13 @@ switch scriptCalling
         OFspec.modelObjSaveName = 'OFobj_SBRdynaToy';
         OFspec.opSaveFolder = 'OPinstances/';%folder name to load/save all the optimisation instances
         
-        OFspec.metDataFileName = 'modelData_toy';%for insulin
-%         OFspec.metDataFileName = 'metDataBas.txt';%for basal
+        OFspec.metDataFileName = 'modelData_toy';
         
 %         OFspec.reLoadData = true;%re-use generated measurements average and error
         OFspec.reLoadData = false;%regenerate measurements average and error
         
-%         OFspec.bumpUpXFeasIniConc = false;%use this to overcome negatives in ODE solver by increasing error tolerance
-        OFspec.bumpUpXFeasIniConc = true;%use this to overcome negatives in ODE solver by increasing initial metabolite concentration
+        OFspec.bumpUpXFeasIniConc = false;%use this to overcome negatives in ODE solver by increasing error tolerance
+%         OFspec.bumpUpXFeasIniConc = true;%use this to overcome negatives in ODE solver by increasing initial metabolite concentration
         
         OFspec.isForHPC = false;%choose this if for local run
 %         OFspec.isForHPC = true;%choose this if optimisation is performed on computing clusters
@@ -61,8 +62,7 @@ switch scriptCalling
         OFspec.newSampleSteps = [20 20 20 20 20 20 20 20 20 20]*2;
         OFspec.opSaveFolder = 'OPinstances/';
         OFspec.fileListToChange  = {
-            'SBRop_20190802_1332437'
-            'SBRop_20190802_1249870'
+            'SBRop_20200805_1115898'
             };
         
 
@@ -83,34 +83,35 @@ switch scriptCalling
 
 %%        
     case 'runner_4a_visualiseSoln'
-        %         OFspec.loadFolder = 'SIMinstances/';
-        %         OFspec.fileName = 'SBRsim_20190801_1559309';
+%                 OFspec.loadFolder = 'SIMinstances/';
+%                 OFspec.fileName = 'SBRsim_20200804_1310111';
         
         OFspec.loadFolder = 'OPinstances/';
-        OFspec.fileName = 'SBRop_20190802_1332337';
-        OFspec.simResidualError = true;
+        OFspec.fileName = 'SBRop_20200805_1115617';
+        OFspec.simResidualError = true;%display residual error of metabolites from highest to lowest
         
 
 %%        
     case 'runner_4b_visualiseMetData'
         OFspec.loadFolder = 'OPinstances/';
-        OFspec.fileName = 'SBRop_20190802_1332337';
+        OFspec.fileName = 'SBRop_20200805_1115617';
             
    
 %%        
     case 'runner_5a_MonteCarloSetup'
         OFspec.loadFolder = 'OPinstances/';
-        OFspec.fileName = 'SBRop_20190903_1300126';%OP instance to clone
+        OFspec.fileName = 'SBRop_20200805_1115898';%OP instance to clone
         OFspec.noCase = 10;%number of data corruption
         OFspec.noRepeatsPerCase = 5;%how many repeated (multistart) optimisation for each corruption
         OFspec.mcSavFolder = 'MCinstances/';
         
         
 %%  
-    case 'runner_5b_compileVisualiseOps'
+    case 'runner_6_compileVisualiseOps'
         OFspec.loadFolder = 'MCinstances/';
-        OFspec.opReferenceFile = 'SBRmc_20190903_1324165';
+        OFspec.opReferenceFile = 'SBRmc_20200805_1603945';
         OFspec.compileFileName = 'compiledOpResults_1';
         OFspec.reloadCompiledResults = false;
+        OFspec.mcBestSoln = false;
 %%
 end

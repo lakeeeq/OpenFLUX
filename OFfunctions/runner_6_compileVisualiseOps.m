@@ -18,7 +18,8 @@ else
         checkCrit(2) = instLoad.opSave.solnIndex > 0;
         checkCrit(3) = instLoad.OF.isODEsolver == opRef.OF.isODEsolver;
         checkCrit(4) = instLoad.OF.isDynamic == opRef.OF.isDynamic;
-        checkCrit(5) = all(instLoad.OF.stepBTWsample == opRef.OF.stepBTWsample);
+        checkCrit(5) = numel(instLoad.OF.stepBTWsample)==numel(opRef.OF.stepBTWsample) && ...
+            all(instLoad.OF.stepBTWsample == opRef.OF.stepBTWsample);
         checkCrit(6) = instLoad.OF.isMonteCarlo == opRef.OF.isMonteCarlo;
         checkCrit(7) = strcmp(instLoad.OF.modelCondition,opRef.OF.modelCondition);
         checkCrit(8) = strcmp(instLoad.OF.modelFileName, opRef.OF.modelFileName);
@@ -26,6 +27,7 @@ else
         if ~all(checkCrit)
             continue
         end
+        compiledResults(cc).instanceName = fileList(i).name;
         compiledResults(cc).mcCase = instLoad.OF.mcCaseRep;
         compiledResults(cc).mcCloneSource = instLoad.OF.mcCloneSource;
         compiledResults(cc).fval = instLoad.opSave.xFitSeries(end).fval;
@@ -48,8 +50,31 @@ else
         end
     end
     
+    
+    
     save(OFspec.compileFileName, 'compiledResults','simTime_ref','emuList_ref','mid_outParsed_ref','sampleTime_ref');
 end
+
+if OFspec.mcBestSoln
+    caseKeep = false(size(compiledResults,2),1);
+    mcCase = [];
+    fvalMapped = [];
+    for i = 1:size(compiledResults,2)
+        if ~isempty(compiledResults(i).mcCase)
+            mcCase(end+1,:) = compiledResults(i).mcCase;
+            fvalMapped(end+1,1) = compiledResults(i).fval;
+        end
+    end
+    uniqueCase = unique(mcCase(:,1));
+    for i = 1:numel(uniqueCase)
+        hitCases = find(mcCase(:,1)==uniqueCase(i));
+        [minFval, index] = min(fvalMapped(hitCases));
+        caseKeep(hitCases(index)) = true;        
+    end
+    compiledResults = compiledResults(caseKeep);
+end
+
+
 %draw fval distribution relative to knots in panels
 %plotting all results instead of selecting best out of a set.
 f1=figure(1);

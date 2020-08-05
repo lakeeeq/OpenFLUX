@@ -36,7 +36,7 @@ Ycopy2 = Ycopy+Y_CM_stag.*YstagVect;
 for i = 1:noExpData
     Ycopy2(dataMet{i,16},:) = dataMet{i,11}*Ycopy2(dataMet{i,16},:);
 end
-% Ycopy3 = Ycopy2;
+
 %%%make sure concentrations are summed from the corrected MIDs
 Ycopy2(Ymat_Czeroed) = 0;
 YsimVect(mFmap(:,2)) = Ycopy2(mFmap(:,1));
@@ -49,15 +49,4 @@ fConc_diff = (dataMetConc_EXPvect-CsimVect_15sJ)./dataMetSE_EXPvect;
 fMID_diff = (dataMetMID_EXPvect-YsimVect_15sJ)./dataMetMID_SEvect;
 
 f = fConc_diff'*fConc_diff + fMID_diff'*fMID_diff;
-
-
-%%%%checking%%%%
-% aa = load('results_I_186.mat');
-% [fConc_diff'*fConc_diff aa.fConc_diff'*aa.fConc_diff]
-% [fMID_diff'*fMID_diff aa.fMID_diff'*aa.fMID_diff]
-% [rad_diff'*rad_diff aa.rad_diff'*aa.rad_diff]
-
-% aa = load('results_B_47.mat');
-% [fConc_diff'*fConc_diff aa.fConc_diff'*aa.fConc_diff]
-% [fMID_diff'*fMID_diff aa.fMID_diff'*aa.fMID_diff]
-% [rad_diff'*rad_diff aa.rad_diff'*aa.rad_diff]
+rad_diff=[];

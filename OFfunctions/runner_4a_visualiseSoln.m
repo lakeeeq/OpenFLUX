@@ -22,7 +22,7 @@ if OF.isOptimisation%%%plot optimisation results
         else
             [f, metConcProfile,EMUstateStore,vProfile,fConc_diff,fMID_diff,rad_diff,vInt] = opSave.fitFxn(solnToVisualise);
         end
-        metSeq = [1:OF.opInput.noExpData]'*ones(1,OF.opInput.noTsample);
+        metSeq = [1:OF.opInput.noExpData]'*ones(1,numel(OF.sampleTime));
         tablePrint = OF.dataMet(:,1);
         for j = 1:size(tablePrint,1)
             tablePrint{j,2} = fConc_diff(metSeq==j)'*fConc_diff(metSeq==j);

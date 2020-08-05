@@ -20,8 +20,9 @@ classdef OpenFLUX < handle
         isMonteCarlo = false %set true for MC optimisation instances
         isODEsolver = false %for ODE15s solver
         isOptimisation = false %is OF object for optimisation
+        inputDirectory %input folder to create OF object
         labelledSub %specify input substrate name and positional enrichment
-        mcCaseRep
+        mcCaseRep %case % iteration
         mcCloneSource
         metDataFileName %metabolite data file
         metList %full metaboltie list
@@ -131,7 +132,7 @@ classdef OpenFLUX < handle
             switch actionToDo
                 case 'load'
                     try
-                        load(strcat([ofOBJ.metDataFileName,'_keep']),'-mat');
+                        load(strcat([ofOBJ.inputDirectory,filesep,ofOBJ.metDataFileName,'_keep']),'-mat');
                     catch
                         disp(['error loading data: file '  ofOBJ.metDataFileName '_keep.mat not found']);
                         return
@@ -139,8 +140,8 @@ classdef OpenFLUX < handle
                     ofOBJ.dataMet = dataMet;
                 case 'save'
                     dataMet = ofOBJ.dataMet;
-                    save(ofOBJ.metDataFileName,'dataMet');
-                    disp(['to reload the same data file, rename saved MAT file to '  ofOBJ.metDataFileName '_keep.mat'])
+                    save(strcat(ofOBJ.inputDirectory,filesep,ofOBJ.metDataFileName),'dataMet');
+                    disp(['to reload the same data file, rename saved MAT file in input folder to '  ofOBJ.metDataFileName '_keep.mat'])
                 case 'generate'
                     ofOBJ.dataMet = calcErrorByMC(ofOBJ.dataMet,noItt);
             end
@@ -169,7 +170,6 @@ classdef OpenFLUX < handle
                     ofOBJ.emuList = emuList_out;
                 end
                 if ofOBJ.isOptimisation
-%                     ofOBJ.ionForm = readIonFormFile(ofOBJ.ionFormFileName);%moved from one line up
                     ofOBJ.dataMet = expandDataMet(ofOBJ);
                 end
                 [opCon_out,opInput_out] = genSimOpProblem(ofOBJ);
@@ -178,7 +178,6 @@ classdef OpenFLUX < handle
                 [ofOBJ.bigEMUmodel, fluxStoicT, ofOBJ.EMUstate, EMUstate_tags] = genEMUmodelStartSS(ofOBJ);
                 ofOBJ.emuList = EMUstate_tags;
                 if ofOBJ.isOptimisation
-%                     ofOBJ.ionForm = readIonFormFile(ofOBJ.ionFormFileName);%moved from one line up
                     ofOBJ.dataMet = expandDataMet(ofOBJ);
                 end
                 [opCon_out,opInput_out] = genSimOpProblemSS(ofOBJ, EMUstate_tags);
@@ -2669,29 +2668,6 @@ end
 end
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function dataOut = readIonFormFile(fileName)
-fid = fopen(fileName,'r');
-c = textscan(fid,'%s','delimiter','\n');
-fclose(fid);
-c = c{1};
-%%%%identify data blocks, remove initial blanks
-while isempty(c{1})
-    c(1) = [];
-end
-dataOut = cell(numel(c),2);
-for i = 1:numel(c)
-    tabPos = regexp(c{i},'\t');
-    if numel(tabPos) == 0
-        dataOut{i,1} = strtrim(c{i});
-        dataOut{i,2} = '';
-    else
-        dataOut{i,1} = strtrim(c{i}(1:tabPos(1)-1));
-        dataOut{i,2} = strtrim(c{i}(tabPos(1)+1:end));
-    end
-end
-end
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function dataMet = calcErrorByMC(dataIn,noItt)
@@ -2805,14 +2781,19 @@ for i = 1:size(dataMet,1)
     fractKeep = find(fractKeep);
     hitIntMet = strcmp(dataMet{i,1},metListWithTag(:,1));%%%list order is important for dynamic 
     
-    formulaRow = find(strcmp(dataMetName,expMIDs(:,1)));
     metEMUsize = metListWithTag{hitIntMet,2};
     hitRow = EMUsizes==metEMUsize;
     hitEMU = OpenFLUX.matchEMU(metListWithTag{hitIntMet,3},metListWithTag{hitIntMet,4},EMUstate_tags{hitRow}(:,[1 2]));
-    if isempty(expMIDs{formulaRow,2})
+    
+    if isempty(expMIDs)
         CM = eye(metEMUsize+1);
     else
-        CM = OpenFLUX.corrMatGen2([1:metEMUsize+1],metEMUsize+1,expMIDs{formulaRow,2});%this one is not normalized, for abs calc
+        formulaRow = find(strcmp(dataMetName,expMIDs(:,1)));
+        if isempty(expMIDs{formulaRow,2})
+            CM = eye(metEMUsize+1);
+        else
+            CM = OpenFLUX.corrMatGen2([1:metEMUsize+1],metEMUsize+1,expMIDs{formulaRow,2});%this one is not normalized, for abs calc
+        end
     end
     
     if ofOBJ.isDynamic

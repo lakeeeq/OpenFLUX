@@ -6,9 +6,14 @@ OFspec = OpenFLUX.OFobjSpecification(mfilename,OFspecFileName);
 
 load(OFspec.modelObjSaveName);
 
+if ~isfolder(OFspec.opSaveFolder)
+    mkdir(OFspec.opSaveFolder);
+end
+
 OF.isOptimisation = true;
 OF.genLabelledSubstrate;
 OF.metDataFileName = OFspec.metDataFileName;
+OF.inputDirectory = OFspec.inputDirectory;
 
 % %%%%quick test by loading existing feasible soln%%%%%%
 % if OF.isODEsolver
