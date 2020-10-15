@@ -121,9 +121,20 @@ for i = 1:size(OF.metListInt)
 end
 fprintf('\n');
 
+
+emuStateMap = OF.getPrivProp('emuMapping');
+fprintf('list of EMUs and positions:\n');
+fprintf('metName(col2)\t[EMU](col3)\t[EMUindexMap](col4)\n');
+for i = 1:size(OF.emuList,1)
+    fprintf('%1.0f\t%s\t[%s]\t[%1.0f,%1.0f]\n',i,OF.emuList{i,1},regexprep(num2str(OF.emuList{i,2}),'  ',','),emuStateMap(i,1),emuStateMap(i,2));
+end
+fprintf('\n');
 fprintf('list of metabolite data:\n')
 fprintf('EMUname(col2)\tmetRow(col3)\t[EMUindexMap](col4)\n');
 for i = 1:size(OF.dataMet)
     fprintf('%1.0f\t%s\t%1.0f\t[%1.0f,%1.0f]\n',i,OF.dataMet{i,1},OF.dataMet{i,8},OF.dataMet{i,10}(1),OF.dataMet{i,10}(2));    
 end
 fprintf('\n');
+
+
+

@@ -36,10 +36,3 @@ if OF.isDynamic
 end
 
 save(strcat(OFspec.inputDirectory,filesep,OFspec.modelObjSaveName),'OF');
-
-emuStateMap = OF.getPrivProp('emuMapping');
-fprintf('list of EMUs and positions:\n');
-fprintf('metName(col2)\t[EMU](col3)\t[EMUindexMap](col4)\n');
-for i = 1:size(OF.emuList,1)
-    fprintf('%1.0f\t%s\t[%s]\t[%1.0f,%1.0f]\n',i,OF.emuList{i,1},regexprep(num2str(OF.emuList{i,2}),'  ',','),emustateMap(i,1),emustateMap(i,2));
-end
