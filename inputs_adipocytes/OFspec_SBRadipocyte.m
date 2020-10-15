@@ -1,4 +1,7 @@
-addpath(pwd)
+addpath(pwd);
+pwdString = pwd;
+hitFS = regexp(pwdString,filesep);
+OFspec.inputDirectory = pwdString((hitFS(end)+1):end);
 %%
 switch scriptCalling
     case 'runner_1_modelSetup'

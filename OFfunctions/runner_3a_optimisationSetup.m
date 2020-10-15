@@ -114,3 +114,16 @@ if OFspec.isForHPC
 else
     disp('optimisation file created');
 end
+
+disp('list of internal metabolites:')
+for i = 1:size(OF.metListInt)
+    fprintf('%1.0f\t%s\n',i,OF.metListInt{i});    
+end
+fprintf('\n');
+
+fprintf('list of metabolite data:\n')
+fprintf('EMUname(col2)\tmetRow(col3)\t[EMUindexMap](col4)\n');
+for i = 1:size(OF.dataMet)
+    fprintf('%1.0f\t%s\t%1.0f\t[%1.0f,%1.0f]\n',i,OF.dataMet{i,1},OF.dataMet{i,8},OF.dataMet{i,10}(1),OF.dataMet{i,10}(2));    
+end
+fprintf('\n');
