@@ -441,7 +441,7 @@ classdef OpenFLUX < handle
                         mid_SIM = mid_SIM.*activAmtMat + stagVect(:,ones(ofOBJ.noSteps,1)).*stagAmtMat;
                     else
                         formulaRow = strcmp(metNameTag,ofOBJ.ionForm(:,1));
-                        CM = OpenFLUX.corrMatGen2([1:midSize+1],midSize+1,ofOBJ.ionForm{formulaRow,3});
+                        CM = OpenFLUX.corrMatGen2([1:midSize+1],midSize+1,ofOBJ.ionForm{formulaRow,2});
                         mid_SIM = mid_SIM.*activAmtMat;
                     end
                     %%%add natural interference
@@ -2399,7 +2399,8 @@ for i = 1:size(EMUbalanceBlock,1)
             AmatIndex(Astoic{j,1}(1),Astoic{j,1}(2)) = find(hitAnyRow);
         end
     end
-    EMUbalanceBlock{i,8} = [find(AmatIndex~=0) AmatIndex(AmatIndex~=0)];
+    c1 = find(AmatIndex~=0); c2 = AmatIndex(AmatIndex~=0);
+    EMUbalanceBlock{i,8} = [c1(:) c2(:)];
     
     Bstoic = EMUbalanceBlock{i,5};
     BmatIndex = zeros(EMUbalanceBlock{i,7});
@@ -2421,7 +2422,8 @@ for i = 1:size(EMUbalanceBlock,1)
             BmatIndex(Bstoic{j,1}(1),Bstoic{j,1}(2)) = find(hitAnyRow);
         end
     end
-    EMUbalanceBlock{i,9} = [find(BmatIndex~=0) BmatIndex(BmatIndex~=0)];
+    c1 = find(BmatIndex~=0); c2 = BmatIndex(BmatIndex~=0);
+    EMUbalanceBlock{i,9} = [c1(:) c2(:)];
 end
 
 EMUsizes = unique([EMUbalanceBlock{:,1}]);
@@ -2982,9 +2984,9 @@ basis = [];
 ratesLBUB = [];
 for i = 1:size(ratesBasis,1)
     if ratesBasis(i,2)==ratesBasis(i,3)
-        basis(end+1,:) = [i ratesBasis(i,2)];
+        basis(end+1,:) = [ratesBasis(i,1) ratesBasis(i,2)];
     else
-        ratesLBUB(end+1,:) = [i ratesBasis(i,2) ratesBasis(i,3)];
+        ratesLBUB(end+1,:) = [ratesBasis(i,1) ratesBasis(i,2) ratesBasis(i,3)];
     end
 end
 
@@ -2994,8 +2996,12 @@ rxnEQ_bal = modelText(balRxn,:);
 
 put_front_R = strcmpi('R',rxnEQ_bal(:,4));
 put_front_rates = false(noV,1);
-put_front_rates(basis(:,1)) = true;
-put_front_rates(ratesLBUB(:,1)) = true;
+if ~isempty(basis)
+    put_front_rates(basis(:,1)) = true;
+end
+if ~isempty(ratesLBUB)
+    put_front_rates(ratesLBUB(:,1)) = true;
+end
 put_last_FR = strcmpi('FR',rxnEQ_bal(:,4));
 rxnOrder = [find(put_front_R)
     find(put_front_rates)
@@ -3054,7 +3060,7 @@ else
 end
 
 v_fixed(~balRxn) = 1;
-if size(v_fixed,1) > size(ns_free,2)
+if size(v_fixed,1) > size(ns_free,1)
     ns_free(size(v_fixed,1),:) = 0;
 end
 

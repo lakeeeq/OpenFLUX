@@ -21,10 +21,11 @@ taskToDO = 'runner_1';%model build and setup (for SS too)
 % taskToDO = 'runner_3a';%optimisation setup (for SS too)
 % taskToDO = 'runner_3c';%change SBR step size
 % taskToDO = 'runner_3d';%change SBR to ODE, and vice-versa
-% taskToDO = 'runner_4a';%visualise flux solution
-% taskToDO = 'runner_4b';%visualise metabolite data
+% taskToDO = 'runner_4a';%visualise flux solution for dynamic model
+% taskToDO = 'runner_4b';%visualise metabolite data for dynamic model
+% taskToDO = 'runner_4c';%visualise flux and metabolite for SS model
 % taskToDO = 'runner_5a';%set up monte carlo runs (MC instances, for SS too)
-% taskToDO = 'runner_6';%compile and visualise optimisation batch
+% taskToDO = 'runner_6';%compile and visualise optimisation batch for dynamic model
 
 %{
 taskToDO = 'runner_3b';%run optimisation (single instance, for SS too)
@@ -66,6 +67,8 @@ switch taskToDO
         runner_4a_visualiseSoln
     case 'runner_4b'
         runner_4b_visualiseMetData
+	case 'runner_4c'
+        runner_4c_visualiseMetFluxDataSS
     case 'runner_5a'
         runner_5a_MonteCarloSetup
     case 'runner_6'

@@ -1,4 +1,4 @@
-function drawFig1(source,callbackdata,mid_outParsed_ref,compiledResults,simTime_ref,sampleTime_ref)
+function drawFig2(source,callbackdata,mid_outParsed_ref,compiledResults,simTime_ref,sampleTime_ref)
 
 if isnumeric(source) && ~isempty(source)
     toDoF = source;

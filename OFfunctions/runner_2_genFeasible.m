@@ -17,7 +17,7 @@ simParas = OF.prepSimulation;
 
 opOptions = optimoptions('fmincon', 'Display','iter','MaxFunEvals',40000);
 
-x0 = rand(size(simParas.lb)).*(simParas.ub-simParas.lb);
+x0 = simParas.lb + rand(size(simParas.lb)).*(simParas.ub-simParas.lb);
 xGuess = x0;
 
 %%%find a feasible solution
@@ -51,11 +51,25 @@ else%%SS mode
             xGuess = xFeas;
         end
     end
+    
+    %min-max simulate
+    opOptions = optimoptions('fmincon', 'Display','off','MaxFunEvals',40000);
+    fluxRange = zeros(size(OF.opInput.ns_free,1),2);
+    for i = 1:size(OF.opInput.ns_free,1)
+        vChoose = -i;
+        fOBJ = @(x)fluxSimRange(x,OF.opInput.pEntries,OF.opInput.isRevPivot,OF.opInput.par,OF.opInput.ns_free,OF.opInput.v_fixed,vChoose);
+        xMax = fmincon(fOBJ,xFeas,[],[],[],[],simParas.lb,simParas.ub,simParas.conFxn,opOptions);
+        vChoose = i;
+        fOBJ = @(x)fluxSimRange(x,OF.opInput.pEntries,OF.opInput.isRevPivot,OF.opInput.par,OF.opInput.ns_free,OF.opInput.v_fixed,vChoose);
+        xMin = fmincon(fOBJ,xFeas,[],[],[],[],simParas.lb,simParas.ub,simParas.conFxn,opOptions);
+        fluxRange(i,:) = [fOBJ(xMin) fOBJ(xMax)];
+    end
 end
 
 
 simSave.x0 = x0;
 simSave.xFeas = xFeas;
+simSave.fluxRange = fluxRange;
 simSave.datetimeCreated = datetime('now','Format','yyyyMMdd_HHmmSSS');
 if OF.isODEsolver%%ODE-mode
     simSave.saveFileName = strcat(['ODEsim_' char(simSave.datetimeCreated) '.mat']);

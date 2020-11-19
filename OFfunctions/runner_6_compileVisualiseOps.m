@@ -35,23 +35,33 @@ else
         compiledResults(cc).xFinish = instLoad.opSave.xFitSeries(end).xFinish;
         if opRef.OF.isDynamic
             compiledResults(cc).xKnot = instLoad.opSave.xIntKnot;
+            [simEMU,simConc,simFlux,simTime,mid_outParsed] = generatePlotData(instLoad.OF,compiledResults(cc).xFinish);
+            compiledResults(cc).simFlux = simFlux;
+            compiledResults(cc).simEMU = simEMU.emuFract;
+            compiledResults(cc).mid_outParsed = mid_outParsed(:,[2 3 4]);
+        else
+            solnToVisualise = instLoad.opSave.xFitSeries(instLoad.opSave.solnIndex).xFinish;
+            [f, EMUstate,flux,fMID_diff] = instLoad.opSave.fitFxn(solnToVisualise);
+            compiledResults(cc).simFlux = flux;
         end
-        [simEMU,simConc,simFlux,simTime,mid_outParsed] = generatePlotData(instLoad.OF,compiledResults(cc).xFinish);
-        compiledResults(cc).simFlux = simFlux;
-        compiledResults(cc).simEMU = simEMU.emuFract;
-        compiledResults(cc).mid_outParsed = mid_outParsed(:,[2 3 4]);
-        cc = cc + 1;
         
-        if strcmp(strcat([OFspec.opReferenceFile '.mat']), fileList(i).name)
-            emuList_ref = simEMU.emuList;
-            simTime_ref = simTime;
-            mid_outParsed_ref = mid_outParsed;
-            sampleTime_ref = opRef.OF.sampleTime;
+        
+        cc = cc + 1;
+        if opRef.OF.isDynamic
+            if strcmp(strcat([OFspec.opReferenceFile '.mat']), fileList(i).name)
+                emuList_ref = simEMU.emuList;
+                simTime_ref = simTime;
+                mid_outParsed_ref = mid_outParsed;
+                sampleTime_ref = opRef.OF.sampleTime;
+            end
+        else
+            emuList_ref = []; 
+            simTime_ref = []; 
+            mid_outParsed_ref = []; 
+            sampleTime_ref = [];
         end
     end
-    
-    
-    
+        
     save(OFspec.compileFileName, 'compiledResults','simTime_ref','emuList_ref','mid_outParsed_ref','sampleTime_ref');
 end
 
@@ -74,6 +84,23 @@ if OFspec.mcBestSoln
     compiledResults = compiledResults(caseKeep);
 end
 
+
+if ~opRef.OF.isDynamic
+   caseStore = [];
+   for i = 1:size(compiledResults,2)
+       caseStore(i,:) = [compiledResults(i).mcCase compiledResults(i).fval];
+   end
+   caseUnique = unique(caseStore(:,1));
+   fluxStore = [];
+   minFStore = [];
+   for i = 1:numel(caseUnique)
+       hitRows = find(caseStore(:,1)==caseUnique(i));
+       [minF index] = min(caseStore(hitRows,3));
+       minFStore(1,i) = minF;
+       fluxStore(:,i) = compiledResults(hitRows(index)).simFlux;
+   end
+    return
+end
 
 %draw fval distribution relative to knots in panels
 %plotting all results instead of selecting best out of a set.
